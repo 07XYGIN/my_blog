@@ -1,0 +1,68 @@
+---
+title: Python 基础语法与工程习惯
+description: 汇总类型注解、解包、常用数据结构、异常处理和装饰器等 Python 工程基础。
+category: Python
+tags: Python, 类型注解, 异常处理
+date: 2026-08-06
+readTime: 6 分钟
+author: Gin
+---
+
+Python 的表达力来自简洁语法，但工程代码仍需要明确的类型、边界和异常策略。
+
+## 类型注解与解包
+
+类型注解能改善编辑器提示与静态检查，也能让函数接口更容易理解。
+
+```python
+def get_full_name(first_name: str, last_name: str) -> str:
+    return f"{first_name.title()} {last_name.title()}"
+
+point = (10, 20)
+x, y = point
+```
+
+`*args` 接收位置参数，`**kwargs` 接收关键字参数。字典可以通过 `**data` 解包为函数参数。
+
+## 数据结构
+
+```python
+numbers = [1, 2, 3, 4]
+even_numbers = [number for number in numbers if number % 2 == 0]
+
+left = {"python", "java"}
+right = {"java", "go"}
+common = left & right
+```
+
+比较空值时使用 `is None`。`==` 比较值，`is` 比较是否为同一个对象。
+
+## 异常处理
+
+只捕获可以处理的具体异常，不要用空的 `except` 隐藏真正的问题。
+
+```python
+try:
+    value = int("abc")
+except ValueError as exc:
+    print("转换失败", exc)
+else:
+    print("转换成功", value)
+finally:
+    print("清理资源")
+```
+
+## 属性与装饰器
+
+`@property` 适合把无参数的计算方法暴露为只读属性；自定义装饰器适合封装日志、鉴权或耗时统计等横切逻辑。
+
+```python
+class Rectangle:
+    def __init__(self, width: float, height: float) -> None:
+        self.width = width
+        self.height = height
+
+    @property
+    def area(self) -> float:
+        return self.width * self.height
+```

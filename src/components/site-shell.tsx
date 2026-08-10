@@ -19,7 +19,7 @@ export function SiteHeader() {
   return (
     <header className="fixed inset-x-0 top-0 z-50 h-16 border-b border-[var(--outline)] bg-[color-mix(in_srgb,var(--surface)_86%,transparent)] backdrop-blur-md">
       <div className="container flex h-16 items-center justify-between">
-        <Link href="/" className="focus-ring text-[28px] font-bold tracking-tight" onClick={() => setOpen(false)}>开发日志</Link>
+        <Link href="/" className="focus-ring text-2xl font-semibold tracking-[-0.06em]" onClick={() => setOpen(false)}>GIN<span className="text-[var(--primary)]">.</span></Link>
         <nav className="hidden items-center gap-2 md:flex">
           {links.map((link) => {
             const active = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
@@ -45,9 +45,9 @@ export function SiteHeader() {
 export function SiteFooter() {
   return <footer className="mt-16 border-t border-[var(--outline)] bg-[var(--surface)] py-14">
     <div className="container flex flex-col items-center justify-between gap-5 md:flex-row">
-      <span className="text-[28px] font-bold tracking-tight">开发日志</span>
-      <span className="font-meta text-[13px] text-[var(--muted)]">© 2024 开发日志 · 为开发者而建</span>
-      <div className="flex gap-5 font-meta text-[13px] text-[var(--muted)]"><a className="hover:text-[var(--primary)]" href="#">GitHub</a><a className="hover:text-[var(--primary)]" href="#">Twitter</a><a className="hover:text-[var(--primary)]" href="#">LinkedIn</a></div>
+      <span className="text-2xl font-semibold tracking-[-0.06em]">GIN<span className="text-[var(--primary)]">.</span></span>
+      <span className="font-meta text-[12px] text-[var(--muted)]">© 2026 Gin · Notes from building</span>
+      <a className="font-meta text-[12px] text-[var(--muted)] hover:text-[var(--primary)]" href="https://github.com/07XYGIN" rel="noreferrer" target="_blank">GitHub ↗</a>
     </div>
   </footer>;
 }

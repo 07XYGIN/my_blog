@@ -1,31 +1,38 @@
-# my_blog
+# Gin Blog
 
-Next.js App Router blog interface recreated from the provided design references.
+Gin 的个人技术博客，内容由根目录 `docs/*.mdx` 驱动。
 
-## Getting Started
+## 技术栈
 
-Requires Node.js 20+ and pnpm.
+- Next.js App Router、React、TypeScript
+- Tailwind CSS、shadcn/ui、Motion
+- next-mdx-remote、rehype-highlight
+- pnpm
+
+## 本地开发
+
+需要 Node.js 22 与 pnpm 11。
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+浏览器打开 [http://localhost:3000](http://localhost:3000)。
 
-## Checks
+## 添加文章
+
+在 `docs` 目录新增 `.mdx` 文件，并填写与现有文章一致的 frontmatter。首页分类、文章详情、目录和相邻文章会自动生成。
+
+## 检查
 
 ```bash
 pnpm lint
 pnpm build
 ```
 
-## Vercel CI/CD
+## 部署
 
-`.github/workflows/cicd.yml` runs lint and build on pull requests, then deploys production after every push to `main`.
+生产地址：[https://xygin.vercel.app](https://xygin.vercel.app)
 
-Add these GitHub Actions secrets in **Settings → Secrets and variables → Actions**:
-
-- `VERCEL_TOKEN`: a Vercel account token
-- `VERCEL_ORG_ID`: `team_nL5FtfNOypjZgcPVK1gtHi6x`
-- `VERCEL_PROJECT_ID`: `prj_PAv6st6bjqhr09jqjXgi2NjnYULA`
+Pull Request 会执行 Lint 与构建检查；推送到 `main` 后，GitHub Actions 会自动部署到 Vercel。

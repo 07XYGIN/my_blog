@@ -4,8 +4,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { SiteHeader, SiteFooter } from "@/components/site-shell";
 
 export const metadata: Metadata = {
-  title: "开发日志 | Alex Chen",
-  description: "一份关于前端、后端与系统设计的技术博客。",
+  title: "Gin | 技术笔记与项目",
+  description: "Gin 的前端、Python、Java 与 Agent 工程笔记。",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

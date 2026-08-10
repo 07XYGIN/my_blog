@@ -1,0 +1,53 @@
+---
+title: Java 与 Spring Boot 工程笔记
+description: 整理 Java 类型系统、Spring Boot 常用注解、参数绑定和依赖版本对齐等实践。
+category: Java
+tags: Java, Spring Boot, MyBatis
+date: 2026-08-05
+readTime: 8 分钟
+author: Gin
+---
+
+Java 工程首先要分清基本类型、引用类型与框架负责的生命周期，再处理 Web 层的数据传递。
+
+## 类型与空值
+
+集合为空和变量为 `null` 是不同状态。调用 `isEmpty()` 前必须保证引用不为 `null`。
+
+```java
+List<String> names = new ArrayList<>();
+boolean empty = names.isEmpty();
+
+BigDecimal price = new BigDecimal("19.90");
+LocalDateTime createdAt = LocalDateTime.now();
+```
+
+财务计算使用 `BigDecimal`，日期时间优先使用 Java 8 之后的 `java.time` API。
+
+## Spring Boot 参数绑定
+
+```java
+@RestController
+@RequestMapping("/users")
+public class UserController {
+    @GetMapping("/{id}")
+    public UserDto getUser(@PathVariable Integer id) {
+        return userService.findById(id);
+    }
+
+    @PostMapping
+    public UserDto createUser(@Valid @RequestBody CreateUserRequest request) {
+        return userService.create(request);
+    }
+}
+```
+
+`@PathVariable` 读取路径参数，`@RequestParam` 读取查询参数，`@RequestBody` 将 JSON 请求体映射为对象。
+
+## 依赖版本对齐
+
+Spring Boot Starter 与框架大版本要保持兼容。尤其是数据库驱动、MyBatis Starter 和 Jakarta 命名空间，升级前要核对官方兼容矩阵。
+
+## DTO 与事务
+
+DTO 负责层与层之间的数据传递，不应直接暴露数据库实体。需要保证多个写操作原子性时，在服务层使用 `@Transactional`，并明确异常回滚行为。

@@ -7,16 +7,23 @@ type ThemeContextValue = { theme: Theme; toggleTheme: () => void };
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === "undefined") return "light";
-    const saved = window.localStorage.getItem("devblog-theme") as Theme | null;
-    return saved ?? "light";
-  });
+  const [theme, setTheme] = useState<Theme>("light");
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const saved = window.localStorage.getItem("gin-theme") as Theme | null;
+      if (saved === "dark") setTheme("dark");
+      setReady(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
     document.documentElement.classList.toggle("dark", theme === "dark");
-    window.localStorage.setItem("devblog-theme", theme);
-  }, [theme]);
+    window.localStorage.setItem("gin-theme", theme);
+  }, [ready, theme]);
 
   const value = useMemo(() => ({ theme, toggleTheme: () => setTheme((current) => current === "light" ? "dark" : "light") }), [theme]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

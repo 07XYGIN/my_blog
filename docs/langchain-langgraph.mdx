@@ -1,0 +1,71 @@
+---
+title: LangChain 与 LangGraph 实践
+description: 从 Chain、结构化输出与工具调用，到 LangGraph 状态图、流式响应和持久化的实践笔记。
+category: Agent
+tags: LangChain, LangGraph, Agent
+date: 2026-08-10
+readTime: 10 分钟
+author: Gin
+---
+
+LangChain 提供模型、提示词、工具和输出解析等组件；LangGraph 用显式状态图组织多步骤 Agent 流程。
+
+## Chain 与结构化输出
+
+```python
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "你是一个简洁、自然的中文助手。"),
+    ("human", "{input}"),
+])
+
+chain = prompt | model | StrOutputParser()
+result = chain.invoke({"input": "解释状态图"})
+```
+
+结构化输出适合要求模型返回固定字段的场景。定义 Pydantic 模型后，可在进入业务逻辑前校验数据。
+
+## 工具调用
+
+```python
+from langchain.tools import tool
+from langchain.agents import create_agent
+
+@tool
+def search(query: str) -> str:
+    """搜索信息"""
+    return f"Results for: {query}"
+
+agent = create_agent(model, tools=[search])
+```
+
+工具描述要清晰，输入输出尽可能收敛；有副作用的工具还需要权限检查或人工确认。
+
+## LangGraph 状态图
+
+图由状态、节点和边组成。节点读取当前状态并返回需要更新的字段，条件边根据状态选择下一步。
+
+```python
+from typing_extensions import TypedDict
+from langgraph.graph import StateGraph, START, END
+
+class State(TypedDict):
+    message: str
+
+def normalize(state: State):
+    return {"message": state["message"].strip()}
+
+workflow = StateGraph(State)
+workflow.add_node("normalize", normalize)
+workflow.add_edge(START, "normalize")
+workflow.add_edge("normalize", END)
+graph = workflow.compile()
+```
+
+## 流式输出与持久化
+
+`messages` 模式输出模型 token，`updates` 输出节点更新，`values` 输出每一步完整状态，`custom` 可承载自定义事件。对话恢复依赖 checkpointer，并且恢复时必须继续使用相同的 `thread_id`。
+
+生产环境不要使用只存在进程内存中的 `InMemorySaver`，应选择 PostgreSQL 等持久化实现。

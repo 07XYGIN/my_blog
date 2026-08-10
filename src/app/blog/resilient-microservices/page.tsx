@@ -1,13 +1,14 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Bookmark, Link2, Share2 } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import rehypeHighlight from "rehype-highlight";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { CodeBlock } from "@/components/code-block";
+import { CodeFrame } from "@/components/code-block";
 
 export default async function BlogPostPage() {
   const source = await readFile(path.join(process.cwd(), "src/content/resilient-microservices.mdx"), "utf8");
-  const content = await MDXRemote({ source, components: { CodeBlock } });
+  const content = await MDXRemote({ source, options: { mdxOptions: { rehypePlugins: [rehypeHighlight] } }, components: { pre: CodeFrame } });
   return <main className="container flex items-start gap-8 section-pad">
     <article className="mx-auto w-full max-w-[700px] shrink-0 md:mx-0">
       <header className="mb-12">
@@ -23,9 +24,8 @@ export default async function BlogPostPage() {
         <PostNav href="#" direction="next" title="部署到 Kubernetes" />
       </div>
     </article>
-    <aside className="sticky top-24 hidden w-64 shrink-0 lg:block"><div className="card p-6"><h2 className="border-b border-[var(--outline)] pb-3 text-[18px] font-semibold">本文目录</h2><nav className="mt-4 flex flex-col gap-3"><a href="#断路器模式" className="meta flex items-start gap-2 text-[13px] text-[var(--muted)] hover:text-[var(--primary)]"><span>·</span>断路器模式</a><a href="#配置-grpc-重试" className="meta flex items-start gap-2 text-[13px] text-[var(--muted)] hover:text-[var(--primary)]"><span>·</span>配置 gRPC 重试</a></nav><div className="mt-8 border-t border-[var(--outline)] pt-6"><p className="meta mb-3 text-[13px] text-[var(--muted)]">分享文章</p><div className="flex gap-2"><IconButton label="复制链接"><Link2 size={16} /></IconButton><IconButton label="分享"><Share2 size={16} /></IconButton><IconButton label="收藏"><Bookmark size={16} /></IconButton></div></div></div></aside>
+    <aside className="sticky top-24 hidden w-64 shrink-0 lg:block"><div className="card p-6"><h2 className="border-b border-[var(--outline)] pb-3 text-[18px] font-semibold">本文目录</h2><nav className="mt-4 flex flex-col gap-3"><a href="#circuit-breaker" className="meta flex items-start gap-2 text-[13px] text-[var(--muted)] hover:text-[var(--primary)]"><span>·</span>断路器模式</a><a href="#grpc-retries" className="meta flex items-start gap-2 text-[13px] text-[var(--muted)] hover:text-[var(--primary)]"><span>·</span>配置 gRPC 重试</a></nav></div></aside>
   </main>;
 }
 
-function IconButton({ label, children }: { label: string; children: React.ReactNode }) { return <button type="button" aria-label={label} className="focus-ring flex h-8 w-8 items-center justify-center rounded bg-[var(--surface-container)] text-[var(--muted)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]">{children}</button>; }
-function PostNav({ href, direction, title }: { href: string; direction: "previous" | "next"; title: string }) { const previous = direction === "previous"; return <Link href={href} className={`focus-ring card flex flex-1 items-center gap-3 p-3 transition hover:border-[var(--primary)] ${previous ? "justify-start" : "justify-end text-right"}`}><span className="rounded-full bg-[var(--surface-container)] p-2">{previous ? <ArrowLeft size={18} /> : <ArrowRight size={18} />}</span><span><span className="meta block text-[11px] uppercase tracking-wider text-[var(--muted)]">{previous ? "上一篇" : "下一篇"}</span><span className="text-[15px] text-[var(--primary)]">{title}</span></span></Link>; }
+function PostNav({ href, direction, title }: { href: string; direction: "previous" | "next"; title: string }) { const previous = direction === "previous"; return <Link href={href} className={`focus-ring card flex flex-1 items-center gap-3 p-3 transition hover:border-[var(--primary)] ${previous ? "justify-start" : "justify-end text-right"}`}><span className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--outline)] bg-[var(--surface-container)] text-[var(--primary)]">{previous ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}</span><span><span className="meta block text-[11px] uppercase tracking-wider text-[var(--muted)]">{previous ? "上一篇" : "下一篇"}</span><span className="text-[15px] text-[var(--primary)]">{title}</span></span></Link>; }

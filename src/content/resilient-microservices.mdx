@@ -1,12 +1,41 @@
 当设计分布式系统时，故障并不是异常，而是必须预期的状态。本文将探索如何结合 Go 的并发模型与 gRPC，构建不仅能从故障中存活，还能优雅处理故障的服务。
 
-## 断路器模式
+<h2 id="circuit-breaker">断路器模式</h2>
 
 级联故障是微服务最难处理的问题之一。一个缓慢的依赖可能会占用整个基础设施中的资源。断路器模式会在下游服务出现问题时快速失败，从而阻止故障扩散。
 
-<CodeBlock />
+```go
+package main
 
-## 配置 gRPC 重试
+import (
+    "context"
+    "log"
+    "time"
+
+    "github.com/sony/gobreaker"
+)
+
+func main() {
+    // 初始化断路器
+    cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
+        Name:        "user-service",
+        MaxRequests: 3,
+        Interval:    5 * time.Second,
+        Timeout:     10 * time.Second,
+    })
+
+    // 包装调用
+    body, err := cb.Execute(func() (interface{}, error) {
+        return fetchUserData(context.Background())
+    })
+
+    if err != nil {
+        log.Printf("触发降级: %v", err)
+    }
+}
+```
+
+<h2 id="grpc-retries">配置 gRPC 重试</h2>
 
 默认情况下，gRPC 客户端不会重试失败的调用。不过，你可以在客户端连接的拨号选项中直接配置精细的重试逻辑。
 

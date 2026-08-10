@@ -84,6 +84,14 @@ html.dark .card { box-shadow: none; }
   background: var(--surface-container);
 }
 
+.hljs { color: #e6edf3; background: transparent; }
+.hljs-comment, .hljs-quote { color: #8b949e; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal { color: #ff7b72; }
+.hljs-string, .hljs-title, .hljs-name, .hljs-attr { color: #a5d6ff; }
+.hljs-number, .hljs-built_in { color: #79c0ff; }
+.hljs-function, .hljs-title.function_, .hljs-variable.language_ { color: #d2a8ff; }
+.hljs-meta { color: #ffa657; }
+
 @media (max-width: 767px) {
   .prose-content h2 { font-size: 24px; }
 }

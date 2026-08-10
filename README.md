@@ -19,3 +19,13 @@ Open [http://localhost:3000](http://localhost:3000).
 pnpm lint
 pnpm build
 ```
+
+## Vercel CI/CD
+
+`.github/workflows/cicd.yml` runs lint and build on pull requests, then deploys production after every push to `main`.
+
+Add these GitHub Actions secrets in **Settings → Secrets and variables → Actions**:
+
+- `VERCEL_TOKEN`: a Vercel account token
+- `VERCEL_ORG_ID`: `team_nL5FtfNOypjZgcPVK1gtHi6x`
+- `VERCEL_PROJECT_ID`: `prj_PAv6st6bjqhr09jqjXgi2NjnYULA`

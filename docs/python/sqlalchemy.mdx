@@ -207,7 +207,7 @@ class GirlfriendConfig(Base):
 
 ---
 
-### 📚 **扩展表格：更多常用类型**
+### 📚 扩展表格：更多常用类型
 
 | Python 类型 | SQLAlchemy 类型 | 数据库类型 | 示例 |
 | --- | --- | --- | --- |
@@ -222,21 +222,16 @@ class GirlfriendConfig(Base):
 | `str` | `VARCHAR(100)` | VARCHAR(100) | 变长字符串 |
 | `int` | `SmallInteger()` | SMALLINT | 小整数 |
 
----
-
-
----
-
-###🔧 **常见配置选项表格**
+### 🔧 常见配置选项
 
 | mapped_column() 参数 | 适用类型 | 示例 | 效果 |
 | --- | --- | --- | --- |
 | `primary_key=True` | 所有类型 | `mapped_column(primary_key=True)` | 设置为主键 |
 | `autoincrement=True` | Integer/BigInteger | `mapped_column(autoincrement=True)` | 自动递增 |
 | `nullable=False` | 所有类型 | `mapped_column(nullable=False)` | 不允许 NULL |
-| `unique=True` | String/Integer等 | `mapped_column(unique=True)` | 值必须唯一 |
+| `unique=True` | String/Integer 等 | `mapped_column(unique=True)` | 值必须唯一 |
 | `index=True` | 所有类型 | `mapped_column(index=True)` | 创建索引 |
-| `default=值` | 所有类型 | `mapped_column(default="默认")` | Python默认值 |
+| `default=值` | 所有类型 | `mapped_column(default="默认")` | Python 默认值 |
 | `server_default=值` | 所有类型 | `server_default=func.now()` | 数据库默认值 |
 | `onupdate=值` | DateTime/TIMESTAMP | `onupdate=func.now()` | 更新时自动设置 |
 | `ForeignKey()` | 所有类型 | `mapped_column(父表.id)` | 设置为外键 |
@@ -247,12 +242,12 @@ class GirlfriendConfig(Base):
 
 写接口时需要考虑
 
-- 传参 and 数据库会话
-- 边缘条件
-- 处理逻辑(可算)
-- 定义sql
-- 提交并执行sql
-- 根据sql返回内容定义接口返回值
+- 传参和数据库会话
+- 边界条件
+- 处理逻辑（可计算部分）
+- 定义 SQL
+- 提交并执行 SQL
+- 根据 SQL 返回内容定义接口返回值
 
 ```python
 @router.get('/info',response_model=response_success,summary='获取用户信息',tags=['角色信息'])
@@ -272,15 +267,15 @@ async def get_user_info(db: AsyncSession = Depends(get_db),code:Optional[str] = 
     """
     row = result.one_or_none() #根据sql返回内容定义接口返回值
     """
-    result 数据库执行完SQL后给你的一个结果容器
+    result 是数据库执行 SQL 后返回的结果容器。
 
-    result.rowcount  返回sql执行行数 删除 / 修改
+    result.rowcount  返回 SQL 影响的行数（删除或修改）。
 
     ==========查询==========
-	result.one_or_none()     # 	取单行，不存在返回None，存在多行报错 场景：根据id查用户，用户可能不存在 返回元组
-		result = await db.execute(select(User.psd, User.code).where(...))  查多列使用one_or_none
-	result.scalar_one_or_none() # 取单行，不存在返回None，存在多行报错  自动解包 返回对象
-		result = await db.execute(select(User).where(User.id == userid)) 查单列使用scalar_one_or_none()
+	result.one_or_none()     # 取单行，不存在返回 None，多行则报错；适合查询可能不存在的用户
+		result = await db.execute(select(User.psd, User.code).where(...))  # 查询多列
+	result.scalar_one_or_none() # 取单行，不存在返回 None，多行则报错；自动解包为对象
+		result = await db.execute(select(User).where(User.id == userid)) # 查询单列
 	下面只可以单列
 	result.scalar()
 	result.scalars().all()

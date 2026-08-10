@@ -7,20 +7,21 @@ date: '2026-08-05'
 readTime: '23 分钟'
 author: 'Gin'
 ---
-## main
-输入网站后-&gt;DNS 解析域名-&gt;ip 地址-&gt;index.html-&gt;遇到 script 标签-&gt;下载 JS
+## 浏览器加载与 JavaScript 执行流程
+
+输入网址后，浏览器会依次进行 DNS 解析、获取 IP 地址、加载 `index.html`，遇到 `script` 标签后下载 JavaScript。
 
 JS 的代码是通过浏览器内核解析的
 
-html 和 css 通过对应的解析引擎转换成 dom 树和 css 树其中如果遇到 JS 会停止解析 html 之后进行组合，JS 代码让 JS 引擎执行
+HTML 和 CSS 会分别由对应的解析引擎转换为 DOM 树和 CSSOM 树。解析 HTML 时如果遇到同步脚本，浏览器通常会暂停解析，待 JavaScript 引擎执行后再继续。
 
-JS 引擎(V8):将 JS 代码转化成机器码
+JavaScript 引擎（例如 V8）会将 JavaScript 代码转换为机器码。
 
-JS-&gt;V8 引擎解析-&gt;AST
+JavaScript → V8 引擎解析 → AST
 
 ## 闭包
 
-```js
+```javascript
 function A() {
   const count = 1;
   return function () {
@@ -31,7 +32,7 @@ function A() {
 
 ## 面向对象
 
-```js
+```javascript
 class P {
   // 如果是私有变量,私有变量可一在类中进行赋值和计算操作，不可以在实例化后使用
   #a = 0;
@@ -48,7 +49,7 @@ class P {
 const p = new P(1, 2, 3); //打印 1 ，2，3
 ```
 ## 继承
-~~~js
+```javascript
 class Animal {
     constructor(name) {
         this.name = name;
@@ -77,7 +78,7 @@ class Dog extends Animal {
 const d = new Dog("小黑", "柴犬");
 d.speak();
 d.getThis(); //可以打印到子类和父类所有的数据
-~~~
+```
 Q:为什么在子类中的`constructor`要先使用`super`然后才能使用this?
 A:在执行子类中要先调用父类的方法，如果要读父类的变量或者把变量存到父类，则要用`super`获取
 
@@ -88,7 +89,7 @@ A:在执行子类中要先调用父类的方法，如果要读父类的变量或
 `getter`: 不可以传参，在调用的时候会触发
 `setter`: 可以传参，在传参的时候会触发
 出现他俩时，不可以有同名方法或函数
-~~~js
+```javascript
 class b{
     constructor(a){
         this.a = a
@@ -109,15 +110,15 @@ const bb = new b(1)
 
 bb.add = 5  // 5 set 5
 bb.add //get
-~~~
+```
 Q：在使用set时 为什么bb.add = 5可以打印到参数5 bb.add(5)就会报错
-A：JS中`setter(set)`,`getter(get)`要使用赋值语法而不是调用语法，因为他们不是**函数**
+A：在 JS 中，`setter` 和 `getter` 要使用赋值语法，而不是调用语法，因为它们不是普通的**函数**。
 
 ## 浅拷贝
 
 在嵌套的对象中，修改新对象的嵌套结构会把旧对象的数据一并修改
 
-```js
+```javascript
 const obj = {
   a: 1,
   b: {
@@ -133,7 +134,7 @@ obj2.a.c = 5; // obj.a.c = 5,obj2.a.c = 5  源数据改变
 
 在嵌套的对象中，修改新对象的嵌套结构不会把旧对象的数据一并修改，新对象和旧对象是两个独立的对象
 
-```js
+```javascript
 const obj1 = { a: 1, b: { c: 2 } };
 const deepCopy = JSON.parse(JSON.stringify(obj1));
 
@@ -159,7 +160,7 @@ console.table(deepCopy); // { a: 1, b: { c: 100 } }
 从里往外面依次访问,如果是多个函数，从上往下以此编译作用域链，
 如果是嵌套函数，根据 return 顺序调用
 
-```js
+```javascript
 var n = 100;
 function foo() {
   console.log(n); // undefined
@@ -169,7 +170,7 @@ function foo() {
 foo();
 ```
 
-```js
+```javascript
 function a() {}
 function b() {}
 a();
@@ -188,7 +189,7 @@ JS 在定义变量是会分配内存
 `typeof`:当数据类型为 null,object,array 时 typeof 统一返回 object,原始数据类型返回其类型
 返回值:数据类型
 
-```js
+```javascript
 const a = 0;
 console.log(typeof a); // number
 ```
@@ -196,29 +197,31 @@ console.log(typeof a); // number
 `instanceof` 查找原型链中是否有该数据类型 仅限于 Array,Object
 返回值:Boolean
 
-```js
+```javascript
 const a = [];
-console.log(a instanceof Array); //Ture
+console.log(a instanceof Array); // true
 ```
 
 `Array.isArray` 判断是否为数组
 返回值:Boolean
 
-```js
+```javascript
 const a = [];
 console.log(Array.isArray(a));
 ```
 
-## promise , eventLoop
+## Promise 与事件循环
 
 ## eventLoop
 
-先执行宏任务-&gt;执行所有微任务-&gt;检查微任务里是否还有微任务(若有，则继续进行若没有)-&gt;执行宏任务-&gt;执行所有微任务-&gt;循环直至全部事件结束
-若存在一个嵌套的任务
-如果是微任务嵌套宏任务:执行微任务-&gt;将宏任务放入队列-&gt;之后进行操作
-如果是宏任务嵌套微任务:执行宏任务-&gt;执行宏任务里的微任务-&gt;继续操作
+事件循环会先执行当前宏任务，再清空微任务队列，然后进入下一个宏任务，如此循环直到任务全部完成。
 
-## Q&amp;A
+如果存在嵌套任务：
+
+- 微任务中产生宏任务：先执行微任务，再将宏任务放入队列。
+- 宏任务中产生微任务：先完成当前宏任务，然后立即清空它产生的微任务。
+
+## Q&A
 
 Q:同步代码会阻塞代码执行，异步代码不会阻塞代码执行？
 A:是的，同步代码会阻塞 JS 的*主线程*，异步代码不会
@@ -239,7 +242,7 @@ A:是的
 
 ## promise
 
-```js
+```javascript
 //第一种
 const a = new Promise((res, rej) => {
   console.log("OK");
@@ -257,7 +260,7 @@ const res = Promise.resolve().then().catch();
 - Promise.resolve().then() / .catch()
 - Promise.reject().then() / .catch()
 
-```js
+```javascript
 //上同
 Promise.resolve("OK").then(
   (res) => {
@@ -268,7 +271,7 @@ Promise.resolve("OK").then(
   }
 );
 ```
-~~~js
+```javascript
 function a(){
     console.log(1)
 }
@@ -280,11 +283,11 @@ console.log(2);
 //输出  2  传递的是函数本身，并没有调用函数
 
 
-~~~
+```
 
 2. `Promise.all`
 
-```js
+```javascript
 // ...省略处理逻辑
 let url = `http://127.0.0.1:5000/api/`;
 let fetchList = [];
@@ -297,26 +300,28 @@ fetchList.push(
     body: JSON.stringify(item),
   }).then((response) => response.json())
 );
-const response = Promise.all(fetchList); //返回array
+const response = Promise.all(fetchList); // 返回数组
 ```
 3. `Promise.race`
-~~~js
-const response = Promise.race(fetchList) //只返回最快的数据
+```javascript
+const response = Promise.race(fetchList); // 只返回最快的结果
 
-~~~
+```
 
 ## 函数和 this 指向
-this值不是由**定义它的位置**决定的，而是由**调用它的方式**决定的
-分以下几种情况
-1. 直接调用函数(严格模式下是undefined)
-~~~js
+`this` 的值不是由**定义位置**决定的，而是由**调用方式**决定的。
+
+常见情况如下：
+
+1. 直接调用函数（严格模式下是 `undefined`）。
+```javascript
 function fn(){
   console.log(this)
 }
 fn() //window
-~~~
-2. 函数作为对象的属性(将这个函数称为方法) 这时this指向这个对象
-~~~js
+```
+2. 函数作为对象的属性（此时称为方法），`this` 指向该对象。
+```javascript
   const person = {
     name: "Alice",
     greet: function () {
@@ -327,14 +332,14 @@ fn() //window
     }
   };
 person.greet(); //{name,greet}
-~~~
-2.1 如果把这个方法赋值给新的变量，那么this指向window
-~~~js
+```
+2.1 如果把这个方法赋值给新的变量，调用时 `this` 通常指向 `window`。
+```javascript
 const myGreet = person.greet;
 myGreet(); // window
-~~~
+```
 3. 使用`new`来创建函数，那么this指向为这个函数
-~~~js
+```javascript
 function Person(name) {
   // this = {}; （JavaScript 引擎隐式创建）
   this.name = name;
@@ -346,46 +351,59 @@ function Person(name) {
 const alice = new Person('Alice');
 alice.sayName(); // 输出：Alice
 // this 指向新创建的 alice 对象
-~~~
-4.箭头函数没有自己的this.它的this继承所在的最外层的作用域，最外层是window
-5.修改this绑定`call`,`apply`,`bind`
+```
+4. 箭头函数没有自己的 `this`，它会继承定义所在作用域的 `this`。
+5. 使用 `call`、`apply` 和 `bind` 修改 `this` 绑定。
 
-~~~js
-function.prototype.call(函数要使用的this，函数的参数1，....参数n)
-function.prototype.bind(函数要使用的this，函数的参数1，....参数n) 返回一个函数
-function.prototype.call(函数要使用的this，[函数的参数1，....参数n])
+```javascript
+Function.prototype.call(thisArg, arg1, ...args)
+Function.prototype.bind(thisArg, arg1, ...args) // 返回一个新函数
+Function.prototype.apply(thisArg, [arg1, ...args])
 
 
-~~~
+```
 
-## MAP,SET
-```js
+## Map 与 Set
+```javascript
 const arr = [1, 1, 2, 3, 2, 1];
 const newArr = [...new Set(arr)];
 ```
 
 1. 定义
-const setDemo = new Set()
-const mapDemo = new Map()
+
+```javascript
+const setDemo = new Set();
+const mapDemo = new Map();
+```
 
 2. 放入数据
-setDemo.add(value:number)
-mapDemo.set(key,value)
+
+```javascript
+setDemo.add(value);
+mapDemo.set(key, value);
+```
 
 3. 取数据
-mapDemo.get(key)
 
-4.删除集合
-setDemo / mapDemo .clear()
+```javascript
+mapDemo.get(key);
+```
+
+4. 删除集合
+
+```javascript
+setDemo.clear();
+mapDemo.clear();
+```
 
 
-## tailwindcss
+## Tailwind CSS
 1.
-~~~bash
+```bash
 pnpm install @tailwindcss/vite tailwindcss
-~~~
+```
 2.
-~~~ts
+```typescript
 // vite.config.ts
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
@@ -394,34 +412,34 @@ import tailwindcss from "@tailwindcss/vite"; //
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
 });
-~~~
+```
 3.
-~~~css
+```css
 /* main.css */
 @import 'node_modules/.pnpm/tailwindcss@4.1.17/node_modules/tailwindcss/dist/lib.d.mts';
-~~~
+```
 4.
-~~~ts
+```typescript
 //main.ts
 import { createApp } from 'vue'
 import App from './App.vue'
 import "./main.css"
 
 createApp(App).mount('#app')
-~~~
+```
 
 ## 其他专业术语
 
 ## 安装
 
-~~~bash
-npm install -G ... # 全局安装
-npm install -D ... # 安装在开发环境
-npm install -S ... # 安装在生产环境
-~~~
+```bash
+pnpm add -g ... # 全局安装
+pnpm add -D ... # 安装到开发依赖
+pnpm add ... # 安装到生产依赖
+```
 
 ## package.json
-~~~json
+```json
 {
   "name": "web",              // 项目名称
   "private": true,           // 私有包，不发布到 npm
@@ -437,7 +455,7 @@ npm install -S ... # 安装在生产环境
   "@tailwindcss/vite": "~4.1.17"
   }
 }
-~~~
+```
 ### ^和~的区别
 
 - ^1.0.0 只能安装1.x.x的最新版本
@@ -445,17 +463,17 @@ npm install -S ... # 安装在生产环境
 
 ## 其他API 和关键字
 
-`innerwidth` :当前窗口的宽度
+`innerWidth`：当前窗口的宽度。
 
-`innerwidth` :当前窗口的高度
+`innerHeight`：当前窗口的高度。
 
 ## wss
-~~~js
+```javascript
 const wsUrl = 'ws://127.0.0.1:8000/ws2'
-const ws = new WebSocket(url)
+const ws = new WebSocket(wsUrl)
 
 /**events */
-ws.onopen()=>{} // 连接成功
+ws.onopen = () => {} // 连接成功
 ws.send(data) // 发送消息
 ws.onmessage(e=>{
   // 收到消息
@@ -464,10 +482,10 @@ ws.onmessage(e=>{
 ws.onerror(e=>{}) // 错误
 ws.onclose(e=>{}) // 关闭
 
-~~~
+```
 
 ## IntersectionObserver
-~~~js
+```javascript
 //拿到DOM
 const bot = document.getElementById('bot');
 const options = {
@@ -475,19 +493,19 @@ const options = {
     root: null,         // 相对哪个容器检查（null=整个窗口）
     rootMargin: '0px'   // 扩大/缩小检测区域
 };
-const obsever = new IntersectionObserver((entries) => {
-    //如果有多个观察目标，entries 会有多个对象，需要遍历如果有多个观察目标，entries 会有多个对象，需要遍历
+const observer = new IntersectionObserver((entries) => {
+    // 如果有多个观察目标，entries 会包含多个对象，需要逐个遍历。
     console.log(entries[0].isIntersecting); // boolean isIntersecting 为 true 表示目标元素与视口/根元素相交。
     /**
      * isIntersecting 是否相交
      * target 监听的DOM元素
      */
-}，{...options});
+}, { ...options });
 // 开始监听
-obsever.observe(bot);
-~~~
+observer.observe(bot);
+```
 ## requestAnimationFrame
-~~~js
+```javascript
 //基本写法 requestAnimationFrame(callback:Function 需要触发动画的函数)
 const test = ()=>{
     console.log('动画');
@@ -511,11 +529,11 @@ requestAnimationFrame(test)
 setTimeout(() => {
     cancelAnimationFrame(id)
 }, 2000);
-~~~
+```
 
-## css 垂直水平居中
-&lt;!-- 第一种 flex + margin --&gt;
-~~~css
+## CSS 垂直水平居中
+第一种：使用 flex 和 `margin: auto`。
+```css
 #feather{
   height:100vh;
   display:flex;
@@ -545,9 +563,9 @@ setTimeout(() => {
   left:50%;
   transform:translate(-50%,-50%)
 }
-~~~
+```
 ## 像素
-~~~css
+```css
 /*
 px  基本像素
 rpx 微信小程序独有单位
@@ -555,14 +573,14 @@ em  根据自己或父元素字体大小保持一致
 rem 根据html字体大小保持一致
 vw  当前页面的宽度
 vh  当前页面的高度*/
-~~~
+```
 ## 回流和重绘
 - 回流:布局发生变化
 - 重绘:样式发生变化不影响布局
 ## vite
 ## plugins
 ### 自定义插件
-~~~ts
+```typescript
 //public/a.ts
 function myvitepublic(){
   return 0
@@ -573,10 +591,10 @@ import myPublicA from './src/plugins/a'
 export default defineConfig({
   plugins: [vue(), myPublicA()],
 })
-~~~
+```
 
 ### 细节
-~~~ts
+```typescript
 // 开发一个插件需要先确定一个功能 才可以开始写代码
 
 import type { Plugin } from "vite";
@@ -606,24 +624,24 @@ export const myPluginA = (options: any): Plugin => {
     },
   };
 };
-~~~
+```
 
 ## monorepo
 ## 新建项目
 step 1. `pnpm init`
 
-step 2. create `pnpm-workspace.yaml`
-~~~yaml
+第 2 步：创建 `pnpm-workspace.yaml`。
+```yaml
 # pnpm-workspace.yaml
 packages:
   # 所有 packages 目录下的子目录都是独立的工作区
   - 'packages/*'
   # apps 目录用于存放应用项目
   - 'apps/*'
-~~~
+```
 
 step 3.创建项目结构
-~~~bash
+```bash
 mkdir -p packages/shared
 
 mkdir -p apps/vue-app
@@ -631,10 +649,10 @@ pnpm create vite
 
 mkdir -p apps/react-app
 pnpm create vite
-~~~
+```
 
 step 4.创建.npmrc
-~~~js
+```javascript
 # .npmrc
 # 强制使用 pnpm 的依赖提升策略
 shamefully-hoist=false
@@ -644,10 +662,10 @@ strict-peer-dependencies=false
 link-workspace-packages=true
 # 首选使用 workspace 中的包
 prefer-workspace-packages=true
-~~~
+```
 
 step 5. 创建公共包 packages/shared/package.json
-~~~json
+```json
 {
   "name": "@my-monorepo/shared",
   "version": "1.0.0",
@@ -662,10 +680,10 @@ step 5. 创建公共包 packages/shared/package.json
     "build": "echo 'No build step required for shared package'"
   }
 }
-~~~
+```
 
 step 6.创建公共工具函数
-~~~ts
+```typescript
 // packages/shared/src/index.ts
 export { request } from './utils' // 导入同目录其他文件
 export const APP_NAME = 'My Monorepo';
@@ -683,14 +701,14 @@ export const request = (url:string)=>{
     return url;
 }
 
-~~~
+```
 
 
 step 7.创建tsconfig
-~~~bash
+```bash
 pnpm add -D -w typescript @types/node
-~~~
-~~~json
+```
+```json
 {
   "compilerOptions": {
     "target": "ES2022",
@@ -709,10 +727,11 @@ pnpm add -D -w typescript @types/node
 }
 
 
-~~~
+```
 
 最终项目结构
 
+```text
 my-monorepo/
 ├── .npmrc
 ├── .gitignore
@@ -727,11 +746,12 @@ my-monorepo/
 └── apps/
     ├── vue-app/
     └── react-app/
+```
 
 
 ## 在项目中使用share包
 
-~~~js
+```javascript
 // apps/vue-app/package.json
 
 //step 1.
@@ -749,7 +769,7 @@ pnpm i
 
 import {APP_NAME} from '@my-monorepo/shared'
 
-~~~
+```
 
 ## Vue
 

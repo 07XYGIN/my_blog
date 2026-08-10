@@ -7,19 +7,22 @@ date: '2026-08-05'
 readTime: '30 分钟'
 author: 'Gin'
 ---
-## JAVA基础
+## Java 基础
 
 ## 数组
 
-### isEmpty()
-List&lt;String&gt; list1 = new ArrayList&lt;&gt;();     // 空列表
+### `isEmpty()`
+
+```java
+List<String> list1 = new ArrayList<>();     // 空列表
 list1.isEmpty();  // true ✅
 
-List&lt;String&gt; list2 = Arrays.asList("a");    // 有1个元素
+List<String> list2 = Arrays.asList("a");    // 有 1 个元素
 list2.isEmpty();  // false ❌
 
-List&lt;String&gt; list3 = null;                  // 这是null，不是空列表
+List<String> list3 = null;                  // 这是 null，不是空列表
 list3.isEmpty();  // 报错 NullPointerException 💥
+```
 
 ## Java 定义变量
 
@@ -51,7 +54,7 @@ list3.isEmpty();  // 报错 NullPointerException 💥
 ---
 
 ### 对应的包装类（引用类型）
-&gt; 基本类型 → 包装类（用于集合、泛型等场景）
+> 基本类型 → 包装类（用于集合、泛型等场景）
 
 | 基本类型 | 包装类    |
 |----------|-----------|
@@ -76,9 +79,10 @@ list3.isEmpty();  // 报错 NullPointerException 💥
 
 ### pom.xml 基础依赖
 
-&gt; ⚠️ **版本对齐提醒**:`mybatis-spring-boot-starter` 的版本必须和 Spring Boot 大版本对齐,否则会出现 `DataSource` 检测顺序错乱的问题(踩坑记录里有详细案例)。
-&gt; - Spring Boot 3.2-3.5 → `mybatis-spring-boot-starter` 用 **3.0.x**
-&gt; - Spring Boot 4.x → `mybatis-spring-boot-starter` 用 **4.0.0**
+> ⚠️ **版本对齐提醒**：`mybatis-spring-boot-starter` 的版本必须与 Spring Boot 的大版本对齐，否则可能出现 `DataSource` 检测顺序错乱的问题。
+>
+> - Spring Boot 3.2～3.5 → `mybatis-spring-boot-starter` 使用 **3.0.x**。
+> - Spring Boot 4.x → `mybatis-spring-boot-starter` 使用 **4.0.0**。
 
 ```xml
 <dependencies>
@@ -128,23 +132,23 @@ list3.isEmpty();  // 报错 NullPointerException 💥
 
 | 注解 | 作用 |
 |---|---|
-| `@RestController` | 标记处理请求的类,返回值自动序列化为 JSON |
-| `@RequestMapping` | 给类/方法下所有接口添加统一路径前缀 |
-| `@RequestParam` | 获取 GET 请求 `?` 后面的查询参数,可用多个接收多个参数 |
+| `@RestController` | 标记处理请求的类，返回值自动序列化为 JSON |
+| `@RequestMapping` | 为类或方法下的接口添加统一路径前缀 |
+| `@RequestParam` | 获取 GET 请求 `?` 后面的查询参数，可接收多个参数 |
 | `@PathVariable` | 获取 URL 路径中 `/` 后面的一段值 |
-| `@RequestBody` | 获取请求体(Body)中的 JSON 数据并映射为对象 |
+| `@RequestBody` | 获取请求体（Body）中的 JSON 数据并映射为对象 |
 | `@CrossOrigin` | 允许跨域请求 |
 | `@Autowired` | 依赖注入 |
-| `@NotNull` | (`jakarta.validation.constraints`)要求字段不为 null |
-| `@NotBlank` | (`jakarta.validation.constraints`)要求字段不为 null 且长度大于 0,只能使用字符串 |
-| `@Data` | (Lombok)自动生成 getter/setter/构造函数等样板代码 |
-| `@Param` | 用于在 SQL 语句中绑定参数,避免 SQL 注入 |
+| `@NotNull` | （`jakarta.validation.constraints`）要求字段不为 `null` |
+| `@NotBlank` | （`jakarta.validation.constraints`）要求字段不为 `null` 且长度大于 0，只能用于字符串 |
+| `@Data` | （Lombok）自动生成 getter、setter、构造函数等样板代码 |
+| `@Param` | 用于在 SQL 语句中绑定参数，避免 SQL 注入 |
 | `@Transactional` | 开启事务 |
 | `@Configuration` | 管理配置 |
 | `@Bean` | 配置 |
 ## 专业名词
 
-- **DTO(数据传输对象)**——用于层与层之间传递数据的载体,类似 Python 里的 Pydantic 模型
+- **DTO（数据传输对象）**——用于层与层之间传递数据的载体，类似 Python 中的 Pydantic 模型。
 
 ---
 
@@ -160,7 +164,7 @@ public String getUser(@RequestParam("userId") Integer id) {
 // GET —— 使用路径传参:/user/info/1
 @GetMapping("/info/{id}")
 public String getUserInfo(@PathVariable("id") Integer id) {
-    return "路径里拔出来的用户ID是：" + id;
+    return "从路径中取出的用户 ID 是：" + id;
 }
 
 // POST —— 新增
@@ -209,7 +213,7 @@ public class UserDto {
 
 标准的 Controller → Service → Mapper 三层结构。
 
-&gt; 📌 **命名规范提醒**:类名必须大驼峰(首字母大写),即 `UserController`、`UserService`。
+> 📌 **命名规范提醒**：类名必须使用大驼峰命名法（首字母大写），例如 `UserController`、`UserService`。
 
 ```java
 // Controller
@@ -295,7 +299,7 @@ public interface UserMapper {
 </mapper>
 ```
 ### 处理一对多时
-~~~xml
+```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
@@ -315,19 +319,19 @@ public interface UserMapper {
 </resultMap>
 </mapper>
 
-~~~
+```
 
-第一次SQL 拿到查询的id-&gt;
+第一次 SQL 查询拿到 ID →
 
-~~~xml
+```xml
 <select id="selectUserWithOrders" resultMap="userWithOrdersMap">
     select id, username, age from user where id = #{id}
 </select>
-~~~
+```
 
-第二次SQL 根据查询的id拿到商品表 也就是 com.example.corelearning.mapper.OrderMapper.selectByUserId
+第二次 SQL 根据查询到的 ID 获取订单表数据，也就是调用 `com.example.corelearning.mapper.OrderMapper.selectByUserId`。
 
-~~~xml
+```xml
 # com.example.corelearning.mapper.OrderMapper.selectByUserId
 <select id="selectByUserId" resultType="com.example.corelearning.dto.OrderDto">
     select id, user_id, amount, status, created_at
@@ -335,12 +339,12 @@ public interface UserMapper {
     where user_id = #{userId}
 </select>
 
-~~~
+```
 ---
 
 ## 统一返回格式封装
 
-&gt; 📌 **命名规范提醒**:类名应为 `Result`(大写开头),不是 `result`。
+> 📌 **命名规范提醒**：类名应为 `Result`（首字母大写），而不是 `result`。
 
 ```java
 // 基于 Lombok 封装
@@ -371,7 +375,7 @@ public interface UserMapper {
 ---
 ## 接口错误统一处理
 ### 通用异常处理
-~~~java
+```java
 @Log4j2 // 日志
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -398,10 +402,10 @@ public class GlobalExceptionHandler {
         return Result.fail(400, message);
     }
 }
-~~~
+```
 ### 自定义业务异常类
 在业务层使用`throw new BusinessException(code, message);` 会自动抓取到 `@BusinessError` 方法，返回自定义的错误码和错误信息。
-~~~java
+```java
 @Getter
 public class BusinessException extends RuntimeException {
     // RuntimeException.class 是一个运行时异常,不会被编译器捕获
@@ -411,11 +415,11 @@ public class BusinessException extends RuntimeException {
         this.code = code;
     }
 }
-~~~
+```
 
 ## 分页
 
-~~~xml
+```xml
 <!-- pom.xml -->
 <dependency>
     <groupId>com.github.pagehelper</groupId>
@@ -423,10 +427,10 @@ public class BusinessException extends RuntimeException {
     <version>4.1.1</version>
     <scope>compile</scope>
 </dependency>
-~~~
+```
 
 
-~~~java
+```java
 //  构建分页返回result
 public class PageResult<T> {
     private Integer pageNum;
@@ -443,9 +447,9 @@ public class PageResult<T> {
         return result;
     }
 }
-~~~
+```
 
-~~~java
+```java
 // controller
 
 @GetMapping("/page")
@@ -466,12 +470,12 @@ public PageInfo<UserDto> getUserPage(Integer pageNum, Integer pageSize, UserDto 
     List<UserDto> list = userMapper.selectByCondition(condition);
     return new PageInfo<>(list);
 }
-~~~
+```
 
 ## 登录鉴权
 
 ### spring-security
-~~~xml
+```xml
 <!-- pom.xml -->
 <!-- 一旦引入这个依赖,Spring Boot会自动给你的所有接口加上登录保护(访问任何接口都会被重定向到一个默认的登录页面) -->
 <dependency>
@@ -480,9 +484,9 @@ public PageInfo<UserDto> getUserPage(Integer pageNum, Integer pageSize, UserDto 
     <version>4.1.0</version>
     <scope>compile</scope>
 </dependency>
-~~~
+```
 
-~~~java
+```java
 // com.example.xxx.config
 // SecurityConfig.java
 
@@ -522,20 +526,20 @@ public class SecurityConfig {
     }
 }
 
-~~~
+```
 
 
-~~~java
+```java
 // 进行加密
 passwordEncoder.encode(密码)
 // 解密
 passwordEncoder.matches(输入的密码，加密的密码)
-~~~
+```
 
 
 ### jwt
 
-~~~xml
+```xml
 <dependency>
 	<groupId>io.jsonwebtoken</groupId>
 	<artifactId>jjwt-api</artifactId>
@@ -551,9 +555,9 @@ passwordEncoder.matches(输入的密码，加密的密码)
 	<artifactId>jjwt-jackson</artifactId>
 	<version>0.12.6</version>
 </dependency>
-~~~
+```
 
-~~~java
+```java
 
 @Component
 public class JWTUtil {
@@ -612,9 +616,9 @@ public class JWTUtil {
         }
     }
 }
-~~~
+```
 
-~~~java
+```java
 /**
 * 对应的取值方法
 */
@@ -624,8 +628,8 @@ String role     = claims.get("role", String.class);     // 取自定义字段
 
 
 
-~~~
-~~~yaml
+```
+```yaml
 # application.yml
 
 jwt:
@@ -633,10 +637,10 @@ jwt:
   expire-time: 7200000 # ms
 
 
-~~~
+```
 
 #### 基于JWT + Spring Security + Redis的过滤器
-~~~java
+```java
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -676,10 +680,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 }
 
-~~~
+```
 
 
-~~~java
+```java
 // 认证失败的过滤器
 @Component
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
@@ -701,10 +705,10 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
         response.getWriter().write(json);
     }
 }
-~~~
+```
 
 ## Redis
-~~~xml
+```xml
 <dependency>
     <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-data-redis</artifactId>
@@ -712,11 +716,11 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
     <scope>compile</scope>
 </dependency>
 
-~~~
+```
 
 
 
-~~~java
+```java
 @Component
 public class RedisUtil {
 
@@ -770,4 +774,4 @@ public class RedisUtil {
 
 
 """
-~~~
+```

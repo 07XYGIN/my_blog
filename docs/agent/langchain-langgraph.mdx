@@ -11,7 +11,7 @@ author: 'Gin'
 
 ## 安装
 
-~~~bash
+```bash
 uv add langchain              # 基础包
 uv add langchain-core         # 最底层核心抽象，例如 Prompt、Message、Runnable
 uv add langchain-ollama       # 调用 Ollama LLM 服务
@@ -25,7 +25,7 @@ uv add langchain-postgres
 uv add langchain-huggingface
 uv add psycopg2-binary
 uv add psycopg-pool
-~~~
+```
 
 ## LangChain 基础
 
@@ -36,7 +36,7 @@ LangChain 核心是把多个组件用链组合起来。
 - parser 输出解析器
 - chain 上一个输出作为下一个输入
 
-~~~py
+```python
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
@@ -48,13 +48,13 @@ prompt = ChatPromptTemplate.from_messages([
 chain = prompt | model | StrOutputParser()
 
 result = chain.invoke({"input": "你好"})
-~~~
+```
 
 ## 提示词
 
 `langchain_core.prompts`
 
-~~~py
+```python
 from langchain_core.prompts import ChatPromptTemplate
 
 template = ChatPromptTemplate.from_messages([
@@ -63,16 +63,16 @@ template = ChatPromptTemplate.from_messages([
 ])
 
 messages = template.invoke({"user_input": "想听个笑话"})
-~~~
+```
 
 ## 流式输出
 
-普通 LangChain chain 可以用 `stream`。
+普通的 LangChain chain 可以使用 `stream`。
 
-~~~py
+```python
 for chunk in chain.stream({"input": "你好"}):
     print(chunk, end="", flush=True)
-~~~
+```
 
 注意：
 
@@ -84,7 +84,7 @@ for chunk in chain.stream({"input": "你好"}):
 
 结构化输出用于让模型返回固定格式。
 
-~~~py
+```python
 from pydantic import BaseModel, Field
 from typing import Literal
 
@@ -100,7 +100,7 @@ structured_llm = model.with_structured_output(GirlfriendResponse)
 result = structured_llm.invoke("你好")
 print(result.content)
 print(result.emotion)
-~~~
+```
 
 ## create_agent
 
@@ -108,7 +108,7 @@ print(result.emotion)
 
 它的底层运行时是 LangGraph，返回的是一个可执行的图。
 
-~~~py
+```python
 from langchain.agents import create_agent
 
 agent = create_agent(
@@ -120,13 +120,13 @@ agent = create_agent(
 result = agent.invoke({
     "messages": [{"role": "user", "content": "你好"}]
 })
-~~~
+```
 
 ## tool
 
-agent 可以根据提示词按需使用工具。
+Agent 可以根据提示词按需使用工具。
 
-~~~py
+```python
 from langchain.tools import tool
 from langchain.agents import create_agent
 
@@ -142,17 +142,17 @@ agent = create_agent(model, tools=[search])
 message = agent.invoke({
     "messages": [{"role": "user", "content": "帮我搜索 LangGraph"}]
 })
-~~~
+```
 
 ## ReAct 手写循环
 
-~~~py
+```python
 llm = create_llm(DEEPSEEK).bind_tools([get_weather])
 logging.basicConfig(level=logging.INFO)
 tools_map = {"get_weather": get_weather}
 
 messages = [
-    SystemMessage(content="你是一个有用的 AI 助手,请给出详细技术回答。如果用户询问某个城市的天气时，你可以使用 get_weather Tool"),
+        SystemMessage(content="你是一个有用的 AI 助手，请给出详细的技术回答。如果用户询问某个城市的天气，你可以使用 get_weather 工具。"),
     HumanMessage(content="你好,帮我查询一下南京的天气"),
 ]
 
@@ -173,13 +173,13 @@ while True:
         break
 
 print(response.content)
-~~~
+```
 
 ## 动态模型
 
 使用 `@wrap_model_call` 可以在运行时切换模型。
 
-~~~py
+```python
 from langchain.agents.middleware import wrap_model_call, ModelRequest, ModelResponse
 
 basic_model = model1
@@ -203,13 +203,13 @@ agent = create_agent(
     tools=[],
     middleware=[dynamic_model_selection],
 )
-~~~
+```
 
 ## 动态系统提示词
 
 根据运行时上下文生成不同 system prompt。
 
-~~~py
+```python
 from typing import TypedDict
 from langchain.agents import create_agent
 from langchain.agents.middleware import dynamic_prompt, ModelRequest
@@ -237,12 +237,12 @@ agent = create_agent(
     middleware=[user_role_prompt],
     context_schema=Context,
 )
-~~~
+```
 
 ### 手写
-在一些特殊情况 需要手写
+在一些特殊情况下，需要手写。
 
-~~~py
+```python
 def build_system_prompt(user_role: str = "user") -> str:
     base_prompt = "你是一个有用的 AI 助手。"
 
@@ -256,7 +256,7 @@ def build_system_prompt(user_role: str = "user") -> str:
     logging.info("user_role=%s, final_prompt=%s", user_role, result)
     return result
 
-~~~
+```
 
 
 
@@ -266,7 +266,7 @@ def build_system_prompt(user_role: str = "user") -> str:
 
 在 LangGraph / LangChain Agent 里，`thread_id` 通常用于区分“同一段对话线程”。只要多次调用使用相同的 `thread_id`，并且配置了 `checkpointer`，Agent 就能读取这个线程之前的消息历史。
 
-```py
+```python
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 
@@ -296,9 +296,9 @@ agent.invoke(
 - 一个用户可以有多个 thread_id，比如多个会话窗口。
 - 一个 thread_id 通常只属于一个用户。
 ```
-### 使用 RunnableConfig 在tool中拿到对应的数据
+### 在工具中使用 RunnableConfig 获取上下文
 
-~~~py
+```python
 @tool
 def show_context(config: RunnableConfig) -> str:
     """查看当前运行配置。"""
@@ -334,11 +334,11 @@ result = agent.invoke(
     },
     config,
 )
-~~~
+```
 
-### 使用tool runtime context拿到数据
-ToolRuntime 是更推荐的写法。它把运行时上下文作为依赖注入给 tool，不需要使用全局变量
-~~~py
+### 使用 ToolRuntime 获取运行时上下文
+ToolRuntime 是更推荐的写法。它会将运行时上下文作为依赖注入给工具，不需要使用全局变量。
+```python
 @dataclass
 class RuntimeContext:
     user_id: str
@@ -378,13 +378,13 @@ result = agent.invoke(
     config,
     context=RuntimeContext(user_id="user-1"),
 )
-~~~
+```
 
-### 短期记忆-&gt;聊天记录
+### 短期记忆 → 聊天记录
 
 生产环境可以用 Postgres 持久化。
 
-~~~py
+```python
 from langgraph.checkpoint.postgres import PostgresSaver
 
 DB_URI = "postgresql://postgres:postgres@localhost:5442/postgres?sslmode=disable"
@@ -396,10 +396,10 @@ with PostgresSaver.from_conn_string(DB_URI) as checkpointer:
         tools=[],
         checkpointer=checkpointer,
     )
-~~~
+```
 ### 长期记忆  文本向量化
 
-~~~py
+```python
 from langchain_postgres import PGVector
 from langchain_core.documents import Document
 SYNC_DATABASE_URL = f'postgresql://{USER}:{PASSWORD}@{HOST}:{PORT}/{NAME}'
@@ -455,7 +455,7 @@ def save_memory(user_id: str, content: str, title: str, create_time: str):
         k=k,
         filter={"user_id": user_id}
     )
-~~~
+```
 
 
 
@@ -473,29 +473,29 @@ LangGraph 的核心是状态和图。
 
 ## 状态
 
-~~~py
+```python
 from typing_extensions import TypedDict
 
 
 class State(TypedDict):
     message: list[str]
-~~~
+```
 
 ## 节点
 
 节点本质是函数，接收 state，返回要更新的字段。
 
-~~~py
+```python
 def node_a(state: State):
     return {"message": ["a"]}
 
 
 def node_b(state: State):
     return {"message": ["b"]}
-~~~
+```
 
 ### tool节点
-~~~py
+```python
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.graph import StateGraph, MessagesState, START, END
 
@@ -517,11 +517,11 @@ app = graph.compile()
 
 result = app.invoke({"messages": [HumanMessage(content="南京天气怎么样")]})
 print(result["messages"][-1].content)
-~~~
+```
 
 ## 边
 
-~~~py
+```python
 from langgraph.graph import StateGraph, START, END
 
 graph = StateGraph(State)
@@ -534,13 +534,13 @@ graph.add_edge("a", "b")
 graph.add_edge("b", END)
 
 app = graph.compile()
-~~~
+```
 
 ### 条件边
 
-需要一个 router 函数 保证节点名绝对正确。
+需要一个 router 函数来保证节点名称绝对正确。
 
-~~~py
+```python
 def router(state: State):
     if state["message"][-1] == "ok":
         return "success_node"
@@ -551,13 +551,13 @@ graph.add_conditional_edges(
     "check", # 节点名
     router,  # 路由
 )
-~~~
+```
 
 ## LangGraph 持久化
 
 保存对话历史或中间状态。
 
-~~~py
+```python
 from typing import Annotated
 from typing_extensions import TypedDict
 from langgraph.graph import StateGraph, START, END
@@ -592,7 +592,7 @@ app = graph.compile(checkpointer=InMemorySaver())
 config = {"configurable": {"thread_id": "user_001"}}
 
 app.invoke({"messages": [{"role": "user", "content": "你好"}]}, config)
-~~~
+```
 
 ## LangGraph
 
@@ -618,14 +618,14 @@ LangGraph 支持几种常用 stream mode。
 
 普通 Python 节点没有 LLM，也可以用 `updates` 看状态变化。
 
-~~~py
+```python
 for part in graph.stream(
     inputs,
     stream_mode="updates",
     version="v2",
 ):
     print(part)
-~~~
+```
 
 ## 打字机
 ### messages 打字机效果
@@ -634,16 +634,16 @@ for part in graph.stream(
 
 如果节点只是字符串拼接：
 
-~~~py
+```python
 def node(state: State):
     return {"content": "hello"}
-~~~
+```
 
 那么：
 
-~~~py
+```python
 graph.stream(inputs, stream_mode="messages", version="v2")
-~~~
+```
 
 不会打印任何东西。
 
@@ -655,7 +655,7 @@ graph.stream(inputs, stream_mode="messages", version="v2")
 
 ### 纯 LangGraph 打字机
 
-~~~py
+```python
 import os
 from typing import Any
 
@@ -692,13 +692,13 @@ for part in graph.stream(inputs, stream_mode="messages", version="v2"):
     message_chunk, metadata = part["data"]
     if content := message_chunk.content:
         print(content, end="", flush=True)
-~~~
+```
 
 ### create_agent 打字机
 
 `create_agent` 返回的也是 LangGraph 图，所以写法类似。
 
-~~~py
+```python
 import os
 from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
@@ -721,13 +721,13 @@ for part in agent.stream(inputs, stream_mode="messages", version="v2"):
     message_chunk, metadata = part["data"]
     if content := message_chunk.content:
         print(content, end="", flush=True)
-~~~
+```
 
 ### callbacks 打字机
 
 也可以不用 `for stream`，用 LangChain callback。
 
-~~~py
+```python
 from langchain_core.callbacks import StreamingStdOutCallbackHandler
 from langchain_ollama import ChatOllama
 
@@ -737,7 +737,7 @@ llm = ChatOllama(
 )
 
 llm.invoke("你好")
-~~~
+```
 
 区别：
 
@@ -750,7 +750,7 @@ llm.invoke("你好")
 
 Ollama 通常最后一个 chunk 才有总 usage。
 
-~~~py
+```python
 for part in graph.stream(inputs, stream_mode="messages", version="v2"):
     message_chunk, metadata = part["data"]
 
@@ -759,11 +759,11 @@ for part in graph.stream(inputs, stream_mode="messages", version="v2"):
 
     if usage := message_chunk.usage_metadata:
         print("\n最终 token 消耗:", usage)
-~~~
+```
 
-如果想每个文字后面显示一个实时数量，可以自己累计。
+如果想在每个文字后面显示实时数量，可以自行累计。
 
-~~~py
+```python
 count = 0
 
 for part in graph.stream(inputs, stream_mode="messages", version="v2"):
@@ -772,7 +772,7 @@ for part in graph.stream(inputs, stream_mode="messages", version="v2"):
     if content := message_chunk.content:
         count += 1
         print(f"{content}[out≈{count}]", end="", flush=True)
-~~~
+```
 
 注意：
 
@@ -790,7 +790,7 @@ for part in graph.stream(inputs, stream_mode="messages", version="v2"):
 1. 流式阶段打印 token
 2. 流结束后解析完整 JSON / Pydantic 对象
 
-~~~py
+```python
 from pydantic import BaseModel, Field
 from langchain_core.output_parsers import PydanticOutputParser
 
@@ -812,7 +812,7 @@ for part in graph.stream(inputs, stream_mode="messages", version="v2"):
         print(content, end="", flush=True)
 
 answer = parser.parse(full_text)
-~~~
+```
 
 ### 只让 msg 字段打字机
 
@@ -824,15 +824,15 @@ answer = parser.parse(full_text)
 
 推荐图结构：
 
-~~~text
+```text
 START -> stream_msg -> structure -> END
-~~~
+```
 
 - `stream_msg` 生成并流式展示自然语言 `msg`
 - `structure` 根据 `msg` 和问题生成结构化对象 `{msg, age}`
 - 外层只打印 `stream_msg` 节点的 token
 
-~~~py
+```python
 for part in graph.stream(inputs, stream_mode="messages", version="v2"):
     message_chunk, metadata = part["data"]
 
@@ -841,7 +841,7 @@ for part in graph.stream(inputs, stream_mode="messages", version="v2"):
 
     if content := message_chunk.content:
         print(content, end="", flush=True)
-~~~
+```
 
 ## 单节点实现只流 msg
 
@@ -854,7 +854,7 @@ for part in graph.stream(inputs, stream_mode="messages", version="v2"):
 3. 同一个节点里再生成结构化对象 `{msg, age}`
 4. 外层只监听 `custom`
 
-~~~py
+```python
 from typing import Any
 from pydantic import BaseModel
 from langgraph.config import get_stream_writer
@@ -883,17 +883,17 @@ def chat_node(state: State) -> dict[str, Any]:
         "age": structured.age,
         "answer": structured.model_dump(),
     }
-~~~
+```
 
 外层：
 
-~~~py
+```python
 for part in graph.stream(inputs, stream_mode="custom", version="v2"):
     data = part["data"]
 
     if data.get("field") == "msg":
         print(data["delta"], end="", flush=True)
-~~~
+```
 
 这个方案最接近“指定某个字段可以流式传输”。
 
@@ -904,10 +904,10 @@ LangGraph 本身没有 `stream_field="msg"` 这种参数，但 `custom` stream �
 
 如果让模型直接流 JSON，流式过程中可能是半截内容。
 
-~~~text
+```text
 {"msg": "你
 好", "age
-~~~
+```
 
 中间片段不是合法 JSON。
 
@@ -927,7 +927,7 @@ LangGraph 本身没有 `stream_field="msg"` 这种参数，但 `custom` stream �
 
 ### LangGraph 与 FastAPI 的 SSE 交互
 
-~~~python
+```python
 # fastapi
 router = APIRouter(
     prefix='/api',
@@ -950,9 +950,9 @@ async def sse_test(msg:request_msg):
         }
     )
 
-~~~
+```
 
-~~~py
+```python
 # langgraph
 
 def aura_agent(human_prompt: str,userId:str) -> Generator[Any, Any, None]:
@@ -967,7 +967,7 @@ def aura_agent(human_prompt: str,userId:str) -> Generator[Any, Any, None]:
     for chunk, metadata in aura.stream(inputs, config, stream_mode="messages"):
         if chunk.content and metadata["langgraph_node"] == "chat":
             yield chunk.content
-~~~
+```
 
 ## 中断（Human-in-the-Loop）
 
@@ -989,7 +989,7 @@ def aura_agent(human_prompt: str,userId:str) -> Generator[Any, Any, None]:
 
 ### 最小示例：手写审批节点
 
-~~~py
+```python
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import interrupt, Command
 from langgraph.graph import StateGraph, MessagesState, START, END
@@ -1043,11 +1043,11 @@ graph.add_edge("tools", "call_model")
 
 checkpointer = InMemorySaver()
 app = graph.compile(checkpointer=checkpointer)
-~~~
+```
 
 ### 调用与恢复
 
-~~~py
+```python
 config = {"configurable": {"thread_id": "session-1"}}
 
 result = app.invoke(
@@ -1067,13 +1067,13 @@ while "__interrupt__" in result:
     )
 
 print("[最终回答]:", result["messages"][-1].content)
-~~~
+```
 
 ### create_agent 内置写法：HumanInTheLoopMiddleware
 
 不用手写审批节点和路由，官方中间件封装了这套逻辑。
 
-~~~py
+```python
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 from langgraph.checkpoint.memory import InMemorySaver
@@ -1093,7 +1093,7 @@ agent = create_agent(
     ],
     checkpointer=InMemorySaver(),
 )
-~~~
+```
 
 四种决策类型：
 

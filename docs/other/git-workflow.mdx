@@ -7,28 +7,31 @@ date: '2026-07-08'
 readTime: '2 分钟'
 author: 'Gin'
 ---
-- git status 查看git状态
-    - U : 未被追踪的文件
-    - A : add的新的文件
-    - M : 修改的文件
-    - D : 删除的文件
-    - R :重命名的文件 (数据结构 2..py -&gt; 3.py)
+## 常用命令
 
-- git add : 提交到暂存区
-- git commit -m '': 提交到本地仓库
-- git push: 本地仓库分支提交到远程仓库分支
-- git pull: 从远程仓库拉到本地
-- git log :查看历史
-- git push -u origin &lt;new branch&gt; :将新分支同步到远程
-- git branch :查看当前分支 (有 * 为当前分支)
-- git checkout -b &lt;new branch&gt; : 创建新分支
-- git checkout &lt;new branch&gt; 切换分支
-- git merge &lt;new branch&gt; 合并分支
+- `git status`：查看 Git 状态。
+  - `U`：未被追踪的文件。
+  - `A`：新增并暂存的文件。
+  - `M`：已修改的文件。
+  - `D`：已删除的文件。
+  - `R`：重命名的文件（例如 `2.py` → `3.py`）。
+
+- `git add`：提交到暂存区。
+- `git commit -m "消息"`：创建本地提交。
+- `git push`：将本地分支推送到远程仓库。
+- `git pull`：从远程仓库拉取更新。
+- `git log`：查看提交历史。
+- `git push -u origin <new-branch>`：将新分支推送到远程并建立跟踪关系。
+- `git branch`：查看分支（带 `*` 的是当前分支）。
+- `git checkout -b <new-branch>`：创建并切换到新分支。
+- `git checkout <new-branch>`：切换分支。
+- `git merge <new-branch>`：合并分支。
 
 ---
 
-冲突
-~~~test
+## 处理冲突
+
+```text
  <<<<<<< HEAD
 我写的代码(当前分支)
 print('main')
@@ -36,14 +39,15 @@ print('main')
 别人写的代码(合并的分支)
 print("testtest")
  >>>>>>> branch_test
-~~~
+```
 
---- 储存
+## 暂存改动
 
-- git stash -u   :  储存所有文件
-- git stash list :  查看储存的文件
-- git stash pop  :  恢复近一个stash
-- git stash pop "stash@&#123;1&#125;" : 拿指定的储存
+- `git stash -u`：暂存所有未提交文件。
+- `git stash list`：查看暂存列表。
+- `git stash pop`：恢复最近一次暂存。
+- `git stash pop "stash@{1}"`：恢复指定的暂存。
 
---- 回滚
-- git revert &lt;commit id&gt; 回滚到当前提交
+## 回滚
+
+- `git revert <commit-id>`：创建一个反向提交，撤销指定提交的改动。

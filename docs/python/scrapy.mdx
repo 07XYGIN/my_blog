@@ -11,39 +11,39 @@ author: 'Gin'
 
 ## 创建项目
 
-~~~bash
+```bash
 uv run scrapy startproject water_tenders .
-~~~
+```
 
 ## 常用命令
 
-~~~bash
-uv run scrapy genspider ggzyfw.beijing  ggzyfw.beijing.gov.cn # 新建一个spider, 文件名为 ggzyfw.beijing 对应的url为 ggzyfw.beijing.gov.cn
+```bash
+uv run scrapy genspider ggzyfw.beijing ggzyfw.beijing.gov.cn # 新建一个 spider，文件名为 ggzyfw.beijing，对应 URL 为 ggzyfw.beijing.gov.cn
 
-uv run scrapy list # 查询项目中有多少个 genspider
+uv run scrapy list # 查询项目中有哪些 spider
 
-uv run scrapy crawl genspider # 运行某一个genspider
+uv run scrapy crawl genspider # 运行指定 spider
 
 uv run scrapy shell "https://example.com" # 调试网页
-~~~
+```
 
 ### 文件目录
-~~~py
-water_tenders/ #真正的 Scrapy 项目包
-  items.py # 定义你要抓取的数据结构。比如公告标题、发布时间、来源网站、详情链接、正文等字段。
-  middlewares.py # 中间件。可以在请求发出前、响应回来后做处理，比如加请求头、代理、重试、cookie 等。初学可以先不管
-  pipelines.py # 数据处理管道。Spider 抓到数据后，可以在这里做去重、清洗、写 Excel、写数据库
-  settings.py # Scrapy 全局配置。比如并发数、下载延迟、是否遵守 robots、启用哪些 pipeline/middleware
-  spiders/ #放爬虫文件的地方。你以后每个网站一个 spider，基本都写在这里
+```python
+water_tenders/ # 真正的 Scrapy 项目包
+  items.py # 定义要抓取的数据结构，例如公告标题、发布时间、来源网站、详情链接和正文。
+  middlewares.py # 请求和响应处理中间件，例如请求头、代理、重试和 Cookie。
+  pipelines.py # 数据处理管道，用于去重、清洗、写入 Excel 或数据库。
+  settings.py # Scrapy 全局设置，例如并发数、下载延迟和 robots.txt 策略。
+  spiders/ # 存放爬虫文件，每个网站通常对应一个 spider。
     __init__.py
 scrapy.cfg # Scrapy 的配置入口。告诉 Scrapy 默认设置文件在哪里
-~~~
+```
 
 
 ### settings.py
 
 
-~~~py
+```python
 # Scrapy settings for water_tenders project
 
 BOT_NAME = "water_tenders"
@@ -116,4 +116,4 @@ CLOSESPIDER_TIMEOUT = 3600  # 爬虫运行1小时后自动关闭（防止死循�
 # HTTPCACHE_EXPIRATION_SECS = 86400  # 缓存24小时
 # HTTPCACHE_DIR = "httpcache"
 # HTTPCACHE_IGNORE_HTTP_CODES = [500, 502, 503]
-~~~
+```

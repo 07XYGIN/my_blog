@@ -1,0 +1,300 @@
+---
+title: '数据库公共知识'
+description: '系统梳理 SQL 分类、表结构、增删改查、约束、索引、事务、类型与函数。'
+category: '其他'
+tags: 'SQL,数据库,事务'
+date: '2026-07-14'
+readTime: '9 分钟'
+author: 'Gin'
+---
+本文整理 MySQL 和 PostgreSQL 都适用的 SQL 基础。各数据库的语法差异、扩展能力和专有特性见 `mysql.md`、`pgsql.md`。
+
+---
+
+## 1. SQL 语句分类
+
+| 类型 | 说明 | 常见语句 |
+| ---- | ---- | -------- |
+| DDL | 定义、修改、删除数据库对象结构 | `CREATE`、`ALTER`、`DROP` |
+| DML | 插入、更新、删除表中的数据 | `INSERT`、`UPDATE`、`DELETE` |
+| DQL | 查询数据 | `SELECT` |
+| DCL | 管理访问权限 | `GRANT`、`REVOKE` |
+| TCL | 管理事务 | `BEGIN`、`COMMIT`、`ROLLBACK` |
+
+---
+
+## 2. DDL：表结构操作
+
+```sql
+-- 创建表
+CREATE TABLE IF NOT EXISTS users (
+    id BIGINT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL,
+    email VARCHAR(100) UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 新增字段
+ALTER TABLE users ADD COLUMN status VARCHAR(20) DEFAULT 'active';
+
+-- 删除字段
+ALTER TABLE users DROP COLUMN status;
+
+-- 删除表
+DROP TABLE IF EXISTS users;
+```
+
+自增主键、表注释、字符集、分区等语法在不同数据库中差异较大，放在各自文档中记录。
+
+---
+
+## 3. DML：增删改
+
+```sql
+-- 插入一条数据
+INSERT INTO users (id, username, email)
+VALUES (1, 'alice', 'alice@example.com');
+
+-- 插入多条数据
+INSERT INTO users (id, username, email)
+VALUES
+    (2, 'bob', 'bob@example.com'),
+    (3, 'charlie', 'charlie@example.com');
+
+-- 更新数据：一定要确认 WHERE 条件，避免全表更新
+UPDATE users
+SET email = 'new_email@example.com'
+WHERE username = 'alice';
+
+-- 删除数据：一定要确认 WHERE 条件，避免全表删除
+DELETE FROM users
+WHERE username = 'charlie';
+```
+
+---
+
+## 4. DQL：查询
+
+```sql
+-- 查询所有列
+SELECT * FROM users;
+
+-- 指定列和条件
+SELECT id, username, email
+FROM users
+WHERE username LIKE 'a%';
+
+-- 常见条件组合
+SELECT *
+FROM users
+WHERE id > 10
+  AND email IS NOT NULL
+  OR username LIKE '%test%';
+
+-- 聚合查询
+SELECT COUNT(*) AS total_count,
+       MAX(id) AS max_id,
+       MIN(id) AS min_id
+FROM users;
+
+-- 分组和分组后过滤
+SELECT username, COUNT(*) AS total_count
+FROM users
+WHERE created_at >= '2024-01-01'
+GROUP BY username
+HAVING COUNT(*) > 1;
+
+-- 排序
+SELECT *
+FROM users
+ORDER BY created_at DESC, id ASC;
+
+-- 分页：MySQL 和 PostgreSQL 都支持 LIMIT (页大小) + OFFSET (偏移量)
+-- 页大小：返回的条数
+-- 偏移量：从第几条数据返回
+SELECT *
+FROM users
+ORDER BY id
+LIMIT 10 OFFSET 20;
+-- 每页十条数据，返回第3页数据
+-- 条数计算公式：偏移量 = (页码 - 1) * 页大小
+```
+
+`LIKE` 常用通配符：
+
+| 写法 | 含义 |
+| ---- | ---- |
+| `'a%'` | 以 `a` 开头 |
+| `'%a'` | 以 `a` 结尾 |
+| `'%a%'` | 包含 `a` |
+| `'_a%'` | 第二个字符是 `a` |
+
+---
+
+## 5. 约束
+
+约束用于限制表中的数据，保证数据的正确性、有效性和完整性。
+
+| 约束 | 概述 | 关键字 |
+| ---- | ---- | ------ |
+| 非空约束 | 字段不能为 `NULL` | `NOT NULL` |
+| 唯一约束 | 字段值不能重复 | `UNIQUE` |
+| 主键约束 | 唯一且不能为空，标识每一行数据 | `PRIMARY KEY` |
+| 默认约束 | 未指定字段值时使用默认值 | `DEFAULT` |
+| 检查约束 | 字段值必须满足表达式条件 | `CHECK` |
+| 外键约束 | 建立两张表之间的引用关系 | `FOREIGN KEY` |
+
+```sql
+CREATE TABLE departments (
+    id BIGINT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE
+);
+
+CREATE TABLE employees (
+    id BIGINT PRIMARY KEY,
+    department_id BIGINT NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    salary DECIMAL(10, 2) CHECK (salary >= 0),
+    CONSTRAINT fk_employees_department
+        FOREIGN KEY (department_id) REFERENCES departments(id)
+);
+```
+
+删除外键或约束的语法在 MySQL 和 PostgreSQL 中不完全一致，见各自文档。
+
+---
+
+## 6. 多表查询
+
+推荐使用显式 `JOIN`，可读性更好，也更容易维护。
+
+```sql
+-- 内连接：只返回两张表都匹配的数据
+SELECT e.id, e.name, d.name AS department_name
+FROM employees e
+INNER JOIN departments d ON e.department_id = d.id;
+
+-- 左连接：保留左表全部数据，右表没有匹配则为 NULL
+SELECT e.id, e.name, d.name AS department_name
+FROM employees e
+LEFT JOIN departments d ON e.department_id = d.id;
+
+-- 右连接：保留右表全部数据，左表没有匹配则为 NULL
+SELECT e.id, e.name, d.name AS department_name
+FROM employees e
+RIGHT JOIN departments d ON e.department_id = d.id;
+```
+
+隐式连接也能使用，但容易产生笛卡尔积：
+
+```sql
+SELECT *
+FROM departments d, employees e
+WHERE d.id = e.department_id;
+```
+
+---
+
+## 7. 索引
+
+索引用于提升查询性能，常见场景包括 `WHERE`、`JOIN`、`ORDER BY`、`GROUP BY` 中频繁使用的字段。
+
+```sql
+-- 单列索引
+CREATE INDEX idx_users_email ON users(email);
+
+-- 多列索引
+CREATE INDEX idx_users_name_created_at ON users(username, created_at);
+```
+
+多列索引需要关注列顺序。通常把区分度高、查询频率高、经常作为过滤条件的列放在前面。
+
+示例：索引 `(username, created_at)` 可以优化：
+
+```sql
+WHERE username = 'alice'
+
+WHERE username = 'alice'
+  AND created_at >= '2024-01-01'
+```
+
+但通常不能很好优化只按第二列过滤的查询：
+
+```sql
+WHERE created_at >= '2024-01-01'
+```
+
+---
+
+## 8. 事务
+
+事务用于保证一组操作要么全部成功提交，要么全部失败回滚，避免数据处于不一致状态。
+
+ACID：
+
+| 特性 | 说明 |
+| ---- | ---- |
+| Atomicity 原子性 | 事务中的操作要么全部完成，要么全部不完成 |
+| Consistency 一致性 | 事务执行前后，数据库都保持一致性状态 |
+| Isolation 隔离性 | 并发事务之间尽量互不干扰 |
+| Durability 持久性 | 事务提交后，修改会被持久保存 |
+
+```sql
+BEGIN;
+
+-- 执行多条 SQL
+UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+
+COMMIT;
+
+-- 出错时回滚
+ROLLBACK;
+```
+
+---
+
+## 9. 常见数据类型
+
+具体范围、存储大小和别名在不同数据库中会有差异，下面记录通用理解。
+
+### 9.1 数字类型
+
+- `INTEGER` / `INT`：整数。
+- `BIGINT`：大整数。
+- `SMALLINT`：小范围整数。
+- `DECIMAL(precision, scale)` / `NUMERIC(precision, scale)`：精确小数，适合金额等场景。
+- `REAL` / `FLOAT` / `DOUBLE`：浮点数，适合近似计算。
+
+### 9.2 字符串类型
+
+- `CHAR(n)`：定长字符串。
+- `VARCHAR(n)`：变长字符串。
+- `TEXT`：长文本。
+
+### 9.3 日期和时间类型
+
+- `DATE`：日期，常见格式为 `YYYY-MM-DD`。
+- `TIME`：时间，常见格式为 `HH:MM:SS`。
+- `TIMESTAMP`：日期和时间。
+
+---
+
+## 10. 常见函数
+
+```sql
+SELECT
+    CONCAT('hello', ' ', 'sql'),      -- 拼接字符串
+    LOWER('ABC'),                    -- 转小写
+    UPPER('abc'),                    -- 转大写
+    LPAD('7', 3, '0'),               -- 左填充
+    RPAD('7', 3, '0'),               -- 右填充
+    SUBSTRING('abcdef', 2, 3),       -- 从第 2 位开始截取 3 个字符
+    CEIL(1.2),                       -- 向上取整
+    FLOOR(1.8),                      -- 向下取整
+    MOD(10, 3),                      -- 取模
+    ROUND(1.2345, 2),                -- 四舍五入并保留 2 位小数
+    CURRENT_TIMESTAMP;               -- 当前时间
+```
+
+随机数函数存在差异：MySQL 使用 `RAND()`，PostgreSQL 使用 `RANDOM()`。

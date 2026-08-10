@@ -1,0 +1,773 @@
+---
+title: 'Java 与 Spring Boot 工程笔记'
+description: '从 Java 基础扩展到 Spring Boot、MyBatis、鉴权、分页与 Redis 的完整工程笔记。'
+category: 'Java'
+tags: 'Java,Spring Boot,MyBatis'
+date: '2026-08-05'
+readTime: '30 分钟'
+author: 'Gin'
+---
+## JAVA基础
+
+## 数组
+
+### isEmpty()
+List&lt;String&gt; list1 = new ArrayList&lt;&gt;();     // 空列表
+list1.isEmpty();  // true ✅
+
+List&lt;String&gt; list2 = Arrays.asList("a");    // 有1个元素
+list2.isEmpty();  // false ❌
+
+List&lt;String&gt; list3 = null;                  // 这是null，不是空列表
+list3.isEmpty();  // 报错 NullPointerException 💥
+
+## Java 定义变量
+
+- `private`——只能在本类内部访问
+- `final`——一旦赋值不可再修改
+- `interface`——只定义"要做什么"(方法签名),具体实现交给别人(比如 MyBatis 根据接口自动生成实现类)
+
+---
+
+## Java 数据类型
+
+### 高精度与日期类型（常用引用类型）
+- `BigDecimal` —— 高精度数字（财务计算必备，解决浮点精度丢失）
+- `LocalDateTime` —— 本地日期时间（Java 8+ 推荐，替代 `Date` 和 `Calendar`）
+- `BigInteger` —— 超大整数（比 `long` 还大时使用）
+
+---
+
+### Java 基本数据类型
+- `byte` —— 8 位，-128~127，省内存用
+- `short` —— 16 位，较少用
+- `int` —— 32 位，**默认整数，最常用**
+- `long` —— 64 位，赋值加 `L`（如 `100L`）
+- `float` —— 32 位，赋值加 `F`（如 `3.14F`）
+- `double` —— 64 位，**默认小数，最常用**
+- `char` —— 16 位，单引号，存单个字符（如 `'A'`、`'中'`）
+- `boolean` —— 仅 `true` / `false`
+
+---
+
+### 对应的包装类（引用类型）
+&gt; 基本类型 → 包装类（用于集合、泛型等场景）
+
+| 基本类型 | 包装类    |
+|----------|-----------|
+| `byte`   | `Byte`    |
+| `short`  | `Short`   |
+| `int`    | `Integer` |
+| `long`   | `Long`    |
+| `float`  | `Float`   |
+| `double` | `Double`  |
+| `char`   | `Character` |
+| `boolean`| `Boolean` |
+---
+
+
+## Spring Boot 学习笔记
+
+---
+
+## 环境与依赖
+
+查找 Maven 依赖:[https://mvnrepository.com/](https://mvnrepository.com/)
+
+### pom.xml 基础依赖
+
+&gt; ⚠️ **版本对齐提醒**:`mybatis-spring-boot-starter` 的版本必须和 Spring Boot 大版本对齐,否则会出现 `DataSource` 检测顺序错乱的问题(踩坑记录里有详细案例)。
+&gt; - Spring Boot 3.2-3.5 → `mybatis-spring-boot-starter` 用 **3.0.x**
+&gt; - Spring Boot 4.x → `mybatis-spring-boot-starter` 用 **4.0.0**
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter</artifactId>
+    </dependency>
+
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-test</artifactId>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- Spring Web -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <!-- Lombok:简化实体类样板代码 -->
+    <dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <optional>true</optional>
+    </dependency>
+
+    <!-- MySQL 驱动 -->
+    <dependency>
+        <groupId>com.mysql</groupId>
+        <artifactId>mysql-connector-j</artifactId>
+        <scope>runtime</scope>
+    </dependency>
+
+    <!-- MyBatis(注意版本对齐 Spring Boot 大版本,见上方提醒) -->
+    <dependency>
+        <groupId>org.mybatis.spring.boot</groupId>
+        <artifactId>mybatis-spring-boot-starter</artifactId>
+        <version>4.0.0</version>
+    </dependency>
+</dependencies>
+```
+
+---
+
+## 常用注解
+
+| 注解 | 作用 |
+|---|---|
+| `@RestController` | 标记处理请求的类,返回值自动序列化为 JSON |
+| `@RequestMapping` | 给类/方法下所有接口添加统一路径前缀 |
+| `@RequestParam` | 获取 GET 请求 `?` 后面的查询参数,可用多个接收多个参数 |
+| `@PathVariable` | 获取 URL 路径中 `/` 后面的一段值 |
+| `@RequestBody` | 获取请求体(Body)中的 JSON 数据并映射为对象 |
+| `@CrossOrigin` | 允许跨域请求 |
+| `@Autowired` | 依赖注入 |
+| `@NotNull` | (`jakarta.validation.constraints`)要求字段不为 null |
+| `@NotBlank` | (`jakarta.validation.constraints`)要求字段不为 null 且长度大于 0,只能使用字符串 |
+| `@Data` | (Lombok)自动生成 getter/setter/构造函数等样板代码 |
+| `@Param` | 用于在 SQL 语句中绑定参数,避免 SQL 注入 |
+| `@Transactional` | 开启事务 |
+| `@Configuration` | 管理配置 |
+| `@Bean` | 配置 |
+## 专业名词
+
+- **DTO(数据传输对象)**——用于层与层之间传递数据的载体,类似 Python 里的 Pydantic 模型
+
+---
+
+## 不同请求方式获取参数
+
+```java
+// GET —— 使用 ? 传参:/user/get?userId=xxx
+@GetMapping("/get")
+public String getUser(@RequestParam("userId") Integer id) {
+    return "查询到用户ID为：" + id;
+}
+
+// GET —— 使用路径传参:/user/info/1
+@GetMapping("/info/{id}")
+public String getUserInfo(@PathVariable("id") Integer id) {
+    return "路径里拔出来的用户ID是：" + id;
+}
+
+// POST —— 新增
+@PostMapping("/add")
+public String addUser(@RequestBody UserDto req) {
+    return "收到新增用户：" + req.getName() + "，年龄：" + req.getAge();
+}
+
+// PUT —— 更新
+@PutMapping("/update")
+public String updateUser(@RequestBody UserDto req) {
+    return "收到更新请求，要把ID为 " + req.getId() + " 的用户改成名字：" + req.getName();
+}
+
+// DELETE —— 删除
+@DeleteMapping("/delete/{id}")
+public String deleteUser(@PathVariable("id") Integer id) {
+    return "成功删除了用户ID：" + id;
+}
+```
+
+**对应的 DTO 类:**
+
+```java
+package com.example.springboot_test;
+
+public class UserDto {
+    private Integer id;
+    private String name;
+    private Integer age;
+
+    public Integer getId() { return id; }
+    public void setId(Integer id) { this.id = id; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public Integer getAge() { return age; }
+    public void setAge(Integer age) { this.age = age; }
+}
+```
+
+---
+
+## 分层架构示例
+
+标准的 Controller → Service → Mapper 三层结构。
+
+&gt; 📌 **命名规范提醒**:类名必须大驼峰(首字母大写),即 `UserController`、`UserService`。
+
+```java
+// Controller
+@RestController
+@RequestMapping("/user")
+public class UserController {
+
+    private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
+
+    @GetMapping("/info/{id}")
+    public List<Integer> getUserInfo(@PathVariable("id") Integer id) {
+        return userService.selectUserList(id);
+    }
+}
+```
+
+```java
+// Service
+@Service
+@RequiredArgsConstructor // lombok注解 自动构造生成器
+
+public class UserService {
+
+    private final UserMapper userMapper;
+
+    public List<Integer> selectUserList(Integer id) {
+        return userMapper.selectUserById(id);
+    }
+}
+```
+
+```java
+// Mapper
+@Mapper
+public interface UserMapper {
+    List<Integer> selectUserById(Integer id);
+}
+```
+
+---
+
+## MyBatis XML 写法
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.springboot_test.mapper.UserMapper">
+    <!-- namespace 必填,必须对应目标 Mapper 接口的完整包路径 -->
+    <!-- resultType 必填,要求返回类型(新增，修改，删除不需要返回值);-->
+
+    <!-- 不含参数的查询 -->
+    <select id="userIdAll" resultType="Integer">
+        select id from user
+    </select>
+
+    <!-- 含参数的查询 -->
+    <select id="selectUserById" resultType="Integer">
+        select id from user where id = #{id}
+    </select>
+
+    <!-- 新增 -->
+    <insert id="insertUser">
+        insert into user(name) values(#{name})
+    </insert>
+
+    <!-- 修改 -->
+    <update id="updateUser">
+        update user set name = #{name} where id = #{id}
+    </update>
+
+    <!-- 删除 -->
+    <delete id="deleteUser">
+        delete from user where id = #{id}
+    </delete>
+
+    <!-- 动态SQL -->
+
+</mapper>
+```
+### 处理一对多时
+~~~xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.springboot_test.mapper.UserMapper">
+
+<resultMap id="userWithOrdersMap" type="com.example.corelearning.dto.UserDto">
+    <!-- resultmnap 将数据库字段映射进java对象里 -->
+    <id property="id" column="id"/>
+    <result property="username" column="username"/>
+    <result property="age" column="age"/>
+
+    <!-- collection标签:声明orders字段怎么填充，将数据库的多条记录，装进 Java 对象里的 List 属性。 -->
+    <collection property="orders" 将查到的数据赋值给UserDTO的orders中
+                column="id" # 将查询结果的id继续传下去
+                select="com.example.corelearning.mapper.OrderMapper.selectByUserId"> # 调用另外的SQL
+    </collection>
+</resultMap>
+</mapper>
+
+~~~
+
+第一次SQL 拿到查询的id-&gt;
+
+~~~xml
+<select id="selectUserWithOrders" resultMap="userWithOrdersMap">
+    select id, username, age from user where id = #{id}
+</select>
+~~~
+
+第二次SQL 根据查询的id拿到商品表 也就是 com.example.corelearning.mapper.OrderMapper.selectByUserId
+
+~~~xml
+# com.example.corelearning.mapper.OrderMapper.selectByUserId
+<select id="selectByUserId" resultType="com.example.corelearning.dto.OrderDto">
+    select id, user_id, amount, status, created_at
+    from orders
+    where user_id = #{userId}
+</select>
+
+~~~
+---
+
+## 统一返回格式封装
+
+&gt; 📌 **命名规范提醒**:类名应为 `Result`(大写开头),不是 `result`。
+
+```java
+// 基于 Lombok 封装
+    @Data
+    public class Result<T> {
+        private Integer code;
+        private String msg;
+        private T data;
+
+        public static <T> Result<T> success(T data) {
+            Result<T> result = new Result<>();
+            result.setCode(200);
+            result.setMsg("操作成功");
+            result.setData(data);
+            return result;
+        }
+
+        // TODO: 补充失败场景的静态方法,配合全局异常处理器使用
+        public static <T> Result<T> fail(Integer code, String msg) {
+            Result<T> result = new Result<>();
+            result.setCode(code);
+            result.setMsg(msg);
+            return result;
+        }
+    }
+```
+
+---
+## 接口错误统一处理
+### 通用异常处理
+~~~java
+@Log4j2 // 日志
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+    // Exception.class 会捕获所有异常,包括自定义异常类
+    @ExceptionHandler(Exception.class)
+    public Result<Void> handleException(Exception e) {
+        log.error("服务器内部错误：{}", e.getMessage(), e);
+        return Result.fail(500, "服务器内部错误：" + e.getMessage());
+    }
+
+    // 使用自定义业务异常类
+    @ExceptionHandler(BusinessException.class)
+    //BusinessException.class 自定义的异常类
+    public Result<Void> BusinessError(BusinessException e){
+        log.warn("业务异常：{}", e.getMessage());
+        return Result.fail(e.getCode(),e.getMessage());
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    //MethodArgumentNotValidException.class 会捕获所有参数校验失败的异常
+    public Result<Void> handleValidException(MethodArgumentNotValidException e) {
+        String message = e.getBindingResult().getFieldError().getDefaultMessage();
+        log.warn("参数校验失败：{}", message);
+        return Result.fail(400, message);
+    }
+}
+~~~
+### 自定义业务异常类
+在业务层使用`throw new BusinessException(code, message);` 会自动抓取到 `@BusinessError` 方法，返回自定义的错误码和错误信息。
+~~~java
+@Getter
+public class BusinessException extends RuntimeException {
+    // RuntimeException.class 是一个运行时异常,不会被编译器捕获
+    private Integer code;
+    public BusinessException(Integer code, String message) {
+        super(message);
+        this.code = code;
+    }
+}
+~~~
+
+## 分页
+
+~~~xml
+<!-- pom.xml -->
+<dependency>
+    <groupId>com.github.pagehelper</groupId>
+    <artifactId>pagehelper-spring-boot-starter</artifactId>
+    <version>4.1.1</version>
+    <scope>compile</scope>
+</dependency>
+~~~
+
+
+~~~java
+//  构建分页返回result
+public class PageResult<T> {
+    private Integer pageNum;
+    private Integer pageSize;
+    private Long total;
+    private List<T> list;
+
+    public static <T> PageResult<T> of(PageInfo<T> pageInfo) {
+        PageResult<T> result = new PageResult<>();
+        result.setPageNum(pageInfo.getPageNum());
+        result.setPageSize(pageInfo.getPageSize());
+        result.setTotal(pageInfo.getTotal());
+        result.setList(pageInfo.getList()); // 返回查询的数据
+        return result;
+    }
+}
+~~~
+
+~~~java
+// controller
+
+@GetMapping("/page")
+
+public Result<PageResult<UserDto>> getUserPage(
+        @RequestParam(defaultValue = "1") Integer pageNum,
+        @RequestParam(defaultValue = "10") Integer pageSize,
+        UserDto user){ // springboot可以自动解包
+    PageInfo<UserDto> pageInfo = userService.getUserPage(pageNum, pageSize, null); // 原PageInfo类
+    PageResult<UserDto> pageResult = PageResult.of(pageInfo);
+    return Result.success(pageResult);
+}
+
+//Service
+
+public PageInfo<UserDto> getUserPage(Integer pageNum, Integer pageSize, UserDto condition) {
+    PageHelper.startPage(pageNum, pageSize);
+    List<UserDto> list = userMapper.selectByCondition(condition);
+    return new PageInfo<>(list);
+}
+~~~
+
+## 登录鉴权
+
+### spring-security
+~~~xml
+<!-- pom.xml -->
+<!-- 一旦引入这个依赖,Spring Boot会自动给你的所有接口加上登录保护(访问任何接口都会被重定向到一个默认的登录页面) -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+    <version>4.1.0</version>
+    <scope>compile</scope>
+</dependency>
+~~~
+
+~~~java
+// com.example.xxx.config
+// SecurityConfig.java
+
+@Configuration
+public class SecurityConfig {
+    /**
+     * 密码加密器（BCrypt强哈希，单向不可逆）
+     */
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+
+        return new BCryptPasswordEncoder();
+    }
+
+    /**
+     * securityFilterChain：所有过滤规，每个请求都会走到这里
+     * HttpSecurity 拦截规则类
+     */
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
+        http
+                .csrf(AbstractHttpConfigurer::disable)  // 禁用CSRF保护(前后端分离项目通常不需要这个,用JWT做鉴权)
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)  // 新增:告诉Spring Security不使用Session
+                )
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)  // 新增:认证失败时用这个类处理
+                )
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/user/register", "/user/login").permitAll()  // 这两个接口不需要登录就能访问
+                        .anyRequest().authenticated()  // 其他所有接口都需要登录
+                );
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);// 新增:在校验表单登录之前插入我们的过滤器
+                //UsernamePasswordAuthenticationFilter.class 处理传统表单登录的过滤器
+        return http.build();
+    }
+}
+
+~~~
+
+
+~~~java
+// 进行加密
+passwordEncoder.encode(密码)
+// 解密
+passwordEncoder.matches(输入的密码，加密的密码)
+~~~
+
+
+### jwt
+
+~~~xml
+<dependency>
+	<groupId>io.jsonwebtoken</groupId>
+	<artifactId>jjwt-api</artifactId>
+	<version>0.12.6</version>
+</dependency>
+<dependency>
+	<groupId>io.jsonwebtoken</groupId>
+	<artifactId>jjwt-impl</artifactId>
+	<version>0.12.6</version>
+</dependency>
+<dependency>
+	<groupId>io.jsonwebtoken</groupId>
+	<artifactId>jjwt-jackson</artifactId>
+	<version>0.12.6</version>
+</dependency>
+~~~
+
+~~~java
+
+@Component
+public class JWTUtil {
+    // 从 application.yml 读取密钥
+    @Value("${jwt.secret-key}")
+    private String secretKey;
+
+    // 从 application.yml 读取过期时间
+    @Value("${jwt.expire-time}")
+    private long expireTime;
+
+    /**
+     * 加密
+     */
+    private SecretKey getKey() {
+        return Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
+    }
+
+     /**
+     * 生成token逻辑
+     * @Param username
+     */
+    public String generateToken(String username, String userId, String role) {
+        return Jwts.builder()
+                .subject(username)
+                .claim("userId", userId)
+                .claim("role", role)
+                .claim("platform", "web")
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + expireTime))
+                .signWith(getKey())
+                .compact();
+    }
+
+     /**
+     * 从token解析用户名
+     */
+    public String getUsernameFromToken(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(getKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        return claims.getSubject();
+    }
+
+     /**
+     * 验证token是否有效
+     */
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parser().verifyWith(getKey()).build().parseSignedClaims(token);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+}
+~~~
+
+~~~java
+/**
+* 对应的取值方法
+*/
+String username = claims.getSubject();        // 取 subject
+Integer userId  = claims.get("userId", Integer.class);  // 取自定义字段
+String role     = claims.get("role", String.class);     // 取自定义字段
+
+
+
+~~~
+~~~yaml
+# application.yml
+
+jwt:
+  secret-key: this-is-a-very-long-secret-key-for-jwt-signing-1234567890abcdef
+  expire-time: 7200000 # ms
+
+
+~~~
+
+#### 基于JWT + Spring Security + Redis的过滤器
+~~~java
+
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    @Autowired
+    private JWTUtil jwtUtil;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                     HttpServletResponse response,
+                                     FilterChain filterChain) throws ServletException, IOException {
+
+        // 第一步:从请求头取出Authorization字段
+        String authHeader = request.getHeader("Authorization");
+
+        // 第二步:检查格式是否是"Bearer xxx",不是的话直接放行(交给后面的规则处理)
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        // 第三步:把"Bearer "这个前缀去掉,拿到真正的令牌内容
+        String token = authHeader.substring(7);
+
+        // 第四步:校验令牌是否合法
+        if (jwtUtil.validateToken(token)) {
+            String username = jwtUtil.getUsernameFromToken(token);
+
+            // 第五步:把"这个用户已登录"的信息,存进Spring Security的上下文
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(username, null, Collections.emptyList());
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+        }
+
+        // 继续放行,请求进入下一个环节
+        filterChain.doFilter(request, response);
+    }
+}
+
+~~~
+
+
+~~~java
+// 认证失败的过滤器
+@Component
+public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
+
+    @Override
+    public void commence(HttpServletRequest request,
+                         HttpServletResponse response,
+                         AuthenticationException authException) throws IOException {
+
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE); //application/json
+        response.setCharacterEncoding("UTF-8");
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); //401
+
+        Result<Void> result = Result.fail(401, "未登录或令牌已失效，请重新登录");
+
+        JsonMapper jsonMapper = JsonMapper.builder().build();
+        String json = jsonMapper.writeValueAsString(result);
+
+        response.getWriter().write(json);
+    }
+}
+~~~
+
+## Redis
+~~~xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-data-redis</artifactId>
+    <version>4.1.0</version>
+    <scope>compile</scope>
+</dependency>
+
+~~~
+
+
+
+~~~java
+@Component
+public class RedisUtil {
+
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+
+    @Autowired
+    private JsonMapper jsonMapper;
+
+    /**
+     * 存值(带过期时间),自动把对象转成JSON字符串
+     */
+    public void set(String key, Object value, long timeout, TimeUnit unit) {
+        String json = jsonMapper.writeValueAsString(value);
+        redisTemplate.opsForValue().set(key, json, timeout, unit);
+    }
+
+    /**
+     * 取值,自动把JSON字符串转回指定类型的对象
+     */
+    public <T> T get(String key, Class<T> clazz) {
+        String json = redisTemplate.opsForValue().get(key);
+        if (json == null) {
+            return null;
+        }
+        return jsonMapper.readValue(json, clazz);
+    }
+
+    /**
+     * 删除某个key
+     */
+    public void delete(String key) {
+        redisTemplate.delete(key);
+    }
+
+    /**
+     * 判断key是否存在
+     */
+    public boolean hasKey(String key) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(key));
+    }
+}
+
+"""
+关键点解释:
+
+- set方法多了timeout和unit两个参数——强制要求调用者每次存值时都必须显式指定过期时间(TimeUnit.MINUTES、TimeUnit.HOURS这些),避免"忘记设置过期时间导致缓存永久堆积"这种问题
+- get方法用了泛型<T>——这样这一个方法可以适配任何类型,比如redisUtil.get("user:1", UserDto.class)就能直接拿到一个UserDto对象,不需要针对每种类型单独写一个方法
+- jsonMapper.readValue(json, clazz)——这是Jackson提供的"反序列化"方法,把JSON字符串转换回Java对象
+
+
+
+"""
+~~~

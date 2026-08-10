@@ -1,12 +1,12 @@
 # Gin Blog
 
-Gin 的个人技术博客，内容由根目录 `docs/*.mdx` 驱动。
+Gin 的个人技术博客，内容由 `docs/` 目录下的 MDX 文件驱动，支持继续按主题细分子目录。
 
 ## 技术栈
 
 - Next.js App Router、React、TypeScript
 - Tailwind CSS、shadcn/ui、Motion
-- next-mdx-remote、rehype-highlight
+- next-mdx-remote、remark-gfm、rehype-highlight
 - pnpm
 
 ## 本地开发
@@ -22,7 +22,9 @@ pnpm dev
 
 ## 添加文章
 
-在 `docs` 目录新增 `.mdx` 文件，并填写与现有文章一致的 frontmatter。首页分类、文章详情、目录和相邻文章会自动生成。
+在 `docs` 或其任意子目录新增 `.mdx` 文件，并填写与现有文章一致的 frontmatter。文件名会生成文章 slug，首页分类、文章详情、目录和相邻文章会自动生成。
+
+当前内容按 `frontend`、`python`、`java`、`agent`、`database` 和 `other` 目录整理，共迁移 13 篇来自 Interview 笔记的文章。代码围栏支持语法高亮，表格等 GFM 语法也会正常渲染。
 
 ## 检查
 
@@ -41,12 +43,18 @@ pnpm build:static
 
 构建产物位于 `out` 目录。GitHub Actions 会在每次检查时生成并保存静态站点 Artifact。
 
-腾讯云 EdgeOne Pages 连接 GitHub 仓库时使用以下配置：
+腾讯云 CloudBase 静态托管已连接 GitHub 仓库 `07XYGIN/my_blog` 的 `main` 分支，推送主分支会自动构建并更新站点：
+
+- 国内访问：[https://gin-blog-gin-d0ghqbprg7d3819db.webapps.tcloudbase.com](https://gin-blog-gin-d0ghqbprg7d3819db.webapps.tcloudbase.com)
+- CloudBase 环境：`gin`（`gin-d0ghqbprg7d3819db`）
+- 应用：`gin-blog`
+
+CloudBase 连接 GitHub 时使用以下配置：
 
 - 框架预设：Next.js（静态导出）
-- Node.js：22
-- 安装命令：`pnpm install --frozen-lockfile`
-- 构建命令：`pnpm build:static`
+- Node.js：24
+- 安装命令：`npx pnpm@11.16.0 install --frozen-lockfile`
+- 构建命令：`npx pnpm@11.16.0 build:static`
 - 输出目录：`out`
 - 生产分支：`main`
 
@@ -54,6 +62,8 @@ pnpm build:static
 
 ## 部署
 
-生产地址：[https://xygin.vercel.app](https://xygin.vercel.app)
+海外生产地址：[https://xygin.vercel.app](https://xygin.vercel.app)
+
+CloudBase 默认域名适合开发测试，存在访问频率限制和稳定性风险。正式使用建议绑定自有域名；中国大陆节点通常还需要完成 ICP 备案。
 
 Pull Request 会执行 Lint 与构建检查；推送到 `main` 后，GitHub Actions 会自动部署到 Vercel。

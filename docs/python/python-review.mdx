@@ -1,0 +1,365 @@
+---
+title: 'Python 常用操作与模块速查'
+description: '记录 Python 项目环境、模块化、异常、数据类型与常用第三方模块。'
+category: 'Python'
+tags: 'Python,uv,模块化'
+date: '2026-08-10'
+readTime: '8 分钟'
+author: 'Gin'
+---
+## 常用操作法
+
+~~~bash
+uv venv .venv # 新建虚拟环境
+uv venv --python 3.11 .venv # 根据特定版本新建虚拟环境
+uv init my-project # 新建项目
+uv aync # 同步项目依赖
+.venv\Scripts\activate # 激活虚拟环境
+deactivate # 退出虚拟环境
+~~~
+在`.python-version`修改python版本
+
+## python基础复习
+
+## enumerate
+用于遍历列表/元组/字符串，获取索引和值
+`enumerate(iterable, start=0)`
+iterable: 任何可迭代对象（列表、元组等）
+
+start: 索引起始值，默认为0
+
+~~~py
+fruits = ['苹果', '香蕉', '橙子']
+
+for index, fruit in enumerate(fruits,start=1):
+    print(f"索引: {index}, 水果: {fruit}")
+
+~~~
+
+`**kwargs`:解包字典
+
+注意:不可以在 ** 后面添加参数，只能在前面添加参数，但可以在 ** 后面加**args
+
+~~~python
+def a(**kwargs):
+    print(kwargs)
+a(name="张三", age=25, city="北京") #输出这个字典
+~~~
+
+## 与或非
+and 与
+or 或
+not 非
+!= 检查内容是否相等
+is not 判断两个值是不是同一个对象/元组/列表
+not in 检查一个元素是否在一个元组/列表/字典
+
+## 模块化
+~~~py
+# a.py
+def add(a,b):
+    return a+b
+
+# main.py
+from a import add
+add(1,2)
+
+~~~
+
+~~~py
+# src/a.py
+src = 1
+
+# main.py
+import src.a as src # 或者    from src.a import src
+
+a = src
+
+~~~
+
+~~~py
+# src/mysql/main.py
+import config
+data = config.database
+
+# config.py
+database="http://localhost:3306"
+~~~
+
+~~~py
+#src/mysql/main
+import config
+
+data = config.database
+def connect_to_db():
+    return data
+
+# src / a
+
+from .mysql.main import connect_to_db
+
+~~~
+
+## 异常
+
+### try-except
+~~~py
+try:
+    xxxxx
+except 错误类型:
+    xxxxx
+else   没有异常时:
+    xxxxx
+finally 不管有没有异常都执行
+    xxxxx
+~~~
+
+### raise
+主动抛出异常
+
+~~~py
+raise ValueError("错误")
+~~~
+## 数据类型
+### str
+- title() 首字母大写
+
+### 类型转换
+- str()
+- int()
+
+### dict
+dict.update(dict[any,any]) 插入新对象
+
+### tuple
+~~~py
+tuples = ('a','b')
+## 解包元组
+b,c = tubles
+b # a
+c # b
+~~~
+
+## typing
+像ts那样，给Py添加类型标注
+~~~py
+def get_full_name(first_name:str, last_name:str)->str:
+    full_name = first_name.title() + " " + last_name.title()
+    return full_name
+~~~
+~~~py
+# 给 list,dict,tuple，set等添加类型。使用typing
+from typing import List,Dict,Tuple,Set
+
+其中有子类型 则 List[str],Dict[str,str].......
+
+~~~
+
+## 其他
+### 1.hasattr
+判断某个对象是否有某个属性
+~~~py
+from dataclasses import dataclass
+
+@dataclass
+class toolList:
+    name:str
+
+msg = toolList('a')
+
+print(hasattr(msg,"n"))
+~~~
+## 爬虫基础
+~~~py
+import requests as r
+from bs4 import BeautifulSoup
+
+url = 'xxxx'
+cookis = 'xxx'
+heades = {
+    "cookie":Cookies
+}
+
+res = r.get(url=url,headers=hearde)
+
+soup = BeautifulSoup(res.text, 'html.parser') #解析成html
+
+clean_text = ' '.join(soup.get_text().split()) # 分割成列表并连接成字符串
+
+
+~~~
+
+
+## 常用模块
+
+## 1.Rich
+一个美化输出的模块
+~~~bash
+uv add Rich
+~~~
+
+
+~~~py
+from rich.console import Console
+console = Console() #实例化
+console.print("这是一条信息", style="bold blue") # 加粗 颜色
+console.print("这是一条消息", style="#00ff00") # 十六进制
+console.print("这是一条消息", style="rgb(0, 255, 0)") # rgb
+console.print("这是一条消息", style="on rgb(0, 255, 0)") # 背景颜色
+~~~
+
+```py
+console.print(
+    style css
+    justify 对齐方式
+)
+```
+
+
+
+## 2.typing
+标注类型
+~~~py
+
+from typing import
+List,
+Dict,
+Set,
+Union[type,type,......], # 相当于TS的 |,
+Annotated[T,mete],#这个值是类型T，同时还带有额外的说明,可以使用 Query 相同的所有参数 便于验证数据
+Literal[A,B,....] = A, # 限制变量只能是特定的几个值 相当于TS的type 如果不传这个参数 默认为A
+Optional #
+~~~
+
+## 3.pydanic
+类型校验
+~~~py
+from pydantic import
+BaseModel, # 相当于TS的interface
+Field, # 数据验证需求 eg:数值的大小，字符串的正则，列表索引的大小
+field_validator, # 校验单个字段
+EmailStr, #校验 mail
+SecretStr, #处理敏感字段
+~~~
+
+
+## 4.env
+### 4.1 dotenv + os
+~~~py
+from dotenv import load_dotenv
+import os
+
+# 加载.env文件
+load_dotenv()
+
+# 读取环境变量
+database_url = os.getenv('DB_HOST')
+api_key = os.getenv('DB_PORT')
+
+~~~
+
+## 5 logging
+
+~~~bash
+uv add loading
+~~~
+
+~~~py
+import logging
+logging.basicConfig(
+    # 日志级别：DEBUG < INFO < WARNING < ERROR < CRITICAL
+    # 设置DEBUG就能看到所有级别的日志
+    level=logging.DEBUG,
+
+    # 日志格式
+    format='%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s',
+
+    # 时间格式
+    datefmt="%Y-%m-%d %H:%M:%S",
+
+    # 输出到文件，不设置默认输出到控制台
+    filename='app.log',
+
+    # 文件写入模式 a=追加 w=覆盖
+    filemode='a',
+
+    # 编码
+    encoding='utf-8'
+)
+"""
+format = (
+    '%(asctime)s'      # 时间 2024-01-01 12:00:00
+    '%(levelname)s'    # 级别 DEBUG INFO WARNING ERROR
+    '%(filename)s'     # 文件名 main.py
+    '%(lineno)d'       # 行号 42
+    '%(funcName)s'     # 函数名 login
+    '%(name)s'         # logger名称
+    '%(message)s'      # 日志内容
+)
+
+"""
+~~~
+
+
+
+## 常用装饰器
+
+## 1.1 @property
+将方法变成属性，只读
+
+~~~py
+# 这是普通方法，使用时需要加括号
+person.get_age()  # 调用方法
+
+# 加了@property后，方法变成属性
+person.age  # 像访问属性一样访问，不加括号
+~~~
+
+
+## 1.2 @dataclass
+自动生成`__init__`,  `__repr__` , `__eq__`等方法
+~~~py
+from dataclasses import dataclass
+@dataclass
+class toolList:
+    name:str
+    def get_display_namee(self,age):
+        obj = {
+            "self":self,
+            "age":age
+        }
+        return obj
+
+item = toolList('join')
+
+~~~
+## 加密
+
+~~~bash
+uv add passlib
+~~~
+
+~~~py
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+"""
+schemes:加密算法
+deprecated:标记旧算法过时
+"""
+
+def get_psd_hash(pass:str)->str:
+"""
+返回hash
+"""
+return pwd_context.hash(pass)
+
+def verify_password(plain_password:str,hashed_password:str)-bool
+"""
+plain_password :密码
+hashed_password:hash
+"""
+return pwd_context.verify(plain_password, hashed_password)
+
+
+~~~

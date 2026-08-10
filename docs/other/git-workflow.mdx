@@ -1,0 +1,49 @@
+---
+title: 'Git 日常工作流速查'
+description: '覆盖状态检查、分支协作、冲突处理、储藏与安全回滚的 Git 命令笔记。'
+category: '其他'
+tags: 'Git,GitHub,工作流'
+date: '2026-07-08'
+readTime: '2 分钟'
+author: 'Gin'
+---
+- git status 查看git状态
+    - U : 未被追踪的文件
+    - A : add的新的文件
+    - M : 修改的文件
+    - D : 删除的文件
+    - R :重命名的文件 (数据结构 2..py -&gt; 3.py)
+
+- git add : 提交到暂存区
+- git commit -m '': 提交到本地仓库
+- git push: 本地仓库分支提交到远程仓库分支
+- git pull: 从远程仓库拉到本地
+- git log :查看历史
+- git push -u origin &lt;new branch&gt; :将新分支同步到远程
+- git branch :查看当前分支 (有 * 为当前分支)
+- git checkout -b &lt;new branch&gt; : 创建新分支
+- git checkout &lt;new branch&gt; 切换分支
+- git merge &lt;new branch&gt; 合并分支
+
+---
+
+冲突
+~~~test
+ <<<<<<< HEAD
+我写的代码(当前分支)
+print('main')
+ =======
+别人写的代码(合并的分支)
+print("testtest")
+ >>>>>>> branch_test
+~~~
+
+--- 储存
+
+- git stash -u   :  储存所有文件
+- git stash list :  查看储存的文件
+- git stash pop  :  恢复近一个stash
+- git stash pop "stash@&#123;1&#125;" : 拿指定的储存
+
+--- 回滚
+- git revert &lt;commit id&gt; 回滚到当前提交

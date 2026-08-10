@@ -4,10 +4,11 @@ import { MDXRemote } from "next-mdx-remote/rsc";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import rehypeHighlight from "rehype-highlight";
+import remarkGfm from "remark-gfm";
 import { CodeFrame } from "@/components/code-block";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { getPost, getPosts, headingId } from "@/lib/posts";
+import { getPost, getPosts, uniqueHeadingId } from "@/lib/posts";
 
 export async function generateStaticParams() {
   return (await getPosts()).map((post) => ({ slug: post.slug }));
@@ -26,12 +27,13 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   const index = posts.findIndex((item) => item.slug === slug);
   const previous = posts[index + 1];
   const next = posts[index - 1];
+  const headingCounts = new Map<string, number>();
   const content = await MDXRemote({
     source: post.source,
-    options: { mdxOptions: { rehypePlugins: [rehypeHighlight] } },
+    options: { mdxOptions: { remarkPlugins: [remarkGfm], rehypePlugins: [rehypeHighlight] } },
     components: {
       pre: CodeFrame,
-      h2: ({ children }) => <h2 id={headingId(String(children))}>{children}</h2>,
+      h2: ({ children }) => <h2 id={uniqueHeadingId(String(children), headingCounts)}>{children}</h2>,
     },
   });
 
@@ -60,7 +62,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         </article>
         <aside className="sticky top-24 hidden lg:block">
           <Card className="p-5">
-            <p className="eyebrow">On this page</p>
+            <p className="eyebrow">文章目录</p>
             <nav className="mt-4 flex flex-col gap-1">
               {post.toc.map((item, itemIndex) => (
                 <a className="focus-ring rounded-lg border-l-2 border-transparent px-3 py-2 text-sm leading-5 text-[var(--muted)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-low)] hover:text-[var(--text)]" href={`#${item.id}`} key={item.id}>

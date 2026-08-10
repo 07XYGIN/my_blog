@@ -1,0 +1,158 @@
+---
+title: 'MySQL 使用文档'
+description: '整理 MySQL 数据库操作、表结构、权限、约束、函数与常用数据类型。'
+category: '其他'
+tags: 'MySQL,SQL,数据库'
+date: '2026-07-08'
+readTime: '5 分钟'
+author: 'Gin'
+---
+公共 SQL 基础见 `public.md`。本文只记录 MySQL 特有或需要特别注意的语法。
+
+---
+
+## 1. 数据库操作
+
+```sql
+-- 显示所有数据库
+SHOW DATABASES;
+
+-- 创建数据库，并指定字符集和校对规则
+CREATE DATABASE IF NOT EXISTS database_name
+    DEFAULT CHARACTER SET utf8mb4
+    COLLATE utf8mb4_general_ci;
+
+-- 删除数据库
+DROP DATABASE IF EXISTS database_name;
+
+-- 选择数据库
+USE database_name;
+```
+
+---
+
+## 2. 表结构查看
+
+```sql
+-- 显示当前数据库中的所有表
+SHOW TABLES;
+
+-- 查看表结构：字段信息、数据类型、约束等
+DESC table_name;
+
+-- 查看建表语句：包含引擎、字符集、注释等信息
+SHOW CREATE TABLE table_name;
+```
+
+---
+
+## 3. MySQL 建表示例
+
+```sql
+CREATE TABLE users (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    username VARCHAR(50) NOT NULL COMMENT '用户名',
+    email VARCHAR(100) NOT NULL UNIQUE COMMENT '邮箱地址',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COMMENT = '用户信息表';
+```
+
+MySQL 常用 `AUTO_INCREMENT` 实现自增主键，表级和字段级注释可直接使用 `COMMENT`。
+
+---
+
+## 4. 用户与权限
+
+MySQL 的用户由 `用户名 + 主机名` 共同标识，例如 `'app_user'@'localhost'`。
+
+```sql
+-- 创建用户
+CREATE USER 'app_user'@'localhost' IDENTIFIED BY 'password';
+
+-- 授权：允许该用户操作指定数据库下的所有表
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON database_name.*
+TO 'app_user'@'localhost';
+
+-- 查看授权
+SHOW GRANTS FOR 'app_user'@'localhost';
+
+-- 回收权限
+REVOKE INSERT, UPDATE, DELETE
+ON database_name.*
+FROM 'app_user'@'localhost';
+
+-- 删除用户
+DROP USER 'app_user'@'localhost';
+```
+
+---
+
+## 5. 外键约束差异
+
+添加外键的语法和通用 SQL 基本一致：
+
+```sql
+ALTER TABLE employees
+ADD CONSTRAINT fk_employees_department
+FOREIGN KEY (department_id) REFERENCES departments(id);
+```
+
+MySQL 删除外键时使用外键名：
+
+```sql
+ALTER TABLE employees DROP FOREIGN KEY fk_employees_department;
+```
+
+如果外键创建时自动生成了名称，可以通过 `SHOW CREATE TABLE employees;` 查看。
+
+---
+
+## 6. MySQL 常用函数差异
+
+大部分字符串、数字、时间函数见 `public.md`。MySQL 随机数函数为：
+
+```sql
+SELECT RAND(); -- 返回 0 到 1 之间的随机小数
+```
+
+常见空值处理：
+
+```sql
+SELECT IFNULL(email, 'unknown@example.com') FROM users;
+```
+
+---
+
+## 7. MySQL 数据类型补充
+
+### 7.1 数字类型
+
+- `TINYINT`：小整数，通常占 1 字节。
+- `SMALLINT`：小范围整数，通常占 2 字节。
+- `MEDIUMINT`：中等范围整数，通常占 3 字节。
+- `INT`：常用整数，通常占 4 字节。
+- `BIGINT`：大整数，通常占 8 字节。
+- `FLOAT`：单精度浮点数。
+- `DOUBLE`：双精度浮点数。
+- `DECIMAL(precision, scale)`：精确小数，适合金额等场景。
+
+### 7.2 字符串和二进制类型
+
+- `CHAR(n)`：定长字符串。
+- `VARCHAR(n)`：变长字符串。
+- `TEXT`：长文本，最大长度为 65,535 字节。
+- `MEDIUMTEXT`：更大文本，最大长度为 16,777,215 字节。
+- `LONGTEXT`：超大文本，最大长度为 4,294,967,295 字节。
+- `BLOB`：二进制数据，最大长度为 65,535 字节。
+- `MEDIUMBLOB`、`LONGBLOB`：更大的二进制数据。
+
+### 7.3 日期和时间类型
+
+- `DATETIME`：日期和时间，格式为 `YYYY-MM-DD HH:MM:SS`。
+- `TIMESTAMP`：时间戳，可配合 `DEFAULT CURRENT_TIMESTAMP` 自动记录时间。
+- `DATE`：日期，格式为 `YYYY-MM-DD`。
+- `TIME`：时间，格式为 `HH:MM:SS`。
+- `YEAR`：年份，建议使用 4 位年份。

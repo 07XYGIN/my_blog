@@ -1,0 +1,341 @@
+---
+title: 'Python 基础语法与工程习惯'
+description: '汇总类型注解、解包、数据结构、异常、类、Pydantic 与工程工具。'
+category: 'Python'
+tags: 'Python,类型注解,Pydantic'
+date: '2026-08-06'
+readTime: '8 分钟'
+author: 'Gin'
+---
+## Python
+
+## 基础语法
+
+### 类型注解
+
+```python
+def get_full_name(first_name: str, last_name: str) -> str:
+    return f"{first_name.title()} {last_name.title()}"
+```
+
+### enumerate
+
+遍历可迭代对象时，同时拿到索引和值。
+
+```python
+fruits = ["苹果", "香蕉", "橙子"]
+
+for index, fruit in enumerate(fruits, start=1):
+    print(index, fruit)
+```
+
+### 解包
+
+```python
+point = (10, 20)
+x, y = point
+
+user = {"name": "Tom", "age": 18}
+
+def create_user(name: str, age: int):
+    return {"name": name, "age": age}
+
+create_user(**user)
+```
+
+`*args` 接收位置参数，`**kwargs` 接收关键字参数。
+
+```python
+def demo(*args, **kwargs):
+    print(args)
+    print(kwargs)
+
+
+demo(1, 2, name="Tom")
+```
+
+### 判断和比较
+
+| 写法 | 含义 |
+| --- | --- |
+| `==` | 比较值是否相等 |
+| `is` | 比较是否是同一个对象 |
+| `in` | 判断元素是否存在于容器 |
+| `and` / `or` / `not` | 逻辑与、或、非 |
+
+```python
+a = []
+b = []
+
+print(a == b)  # True，值相同
+print(a is b)  # False，不是同一个对象
+print(None is None)  # True
+```
+
+判断空值使用 `is None`，不要使用 `== None`。
+
+## 常用数据结构
+
+### dict
+
+```python
+user = {"name": "Tom"}
+user.update({"age": 18})
+
+name = user.get("name")
+missing = user.get("missing", "default")
+```
+
+### list
+
+```python
+numbers = [1, 2, 3]
+even_numbers = [number for number in numbers if number % 2 == 0]
+```
+
+### tuple
+
+```python
+pair = ("token", "abc")
+key, value = pair
+```
+
+### set
+
+```python
+left = {"python", "java"}
+right = {"java", "go"}
+
+print(left & right)  # 交集
+print(left | right)  # 并集
+```
+
+### str
+
+```python
+name = " tom "
+print(name.strip().title())
+```
+
+## 模块与异常
+
+同级文件导入：
+
+```python
+# math_utils.py
+def add(a: int, b: int) -> int:
+    return a + b
+```
+
+```python
+# main.py
+from math_utils import add
+
+print(add(1, 2))
+```
+
+业务项目从包根路径做绝对导入：
+
+```python
+from app.repositories.user_repository import get_user
+```
+
+异常处理：
+
+```python
+try:
+    value = int("abc")
+except ValueError as exc:
+    print("转换失败", exc)
+else:
+    print("没有异常时执行")
+finally:
+    print("无论是否异常都会执行")
+```
+
+主动抛出异常：
+
+```python
+def get_user(user_id: int):
+    if user_id <= 0:
+        raise ValueError("user_id 必须大于 0")
+```
+
+## 类与装饰器
+
+### `@property`
+
+把方法变成只读属性，适合计算型字段。
+
+```python
+class User:
+    def __init__(self, first_name: str, last_name: str):
+        self.first_name = first_name
+        self.last_name = last_name
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.first_name} {self.last_name}"
+```
+
+### `@dataclass`
+
+适合简单数据对象，自动生成常用的初始化和比较方法。
+
+```python
+from dataclasses import dataclass
+
+
+@dataclass
+class ToolInfo:
+    name: str
+    description: str
+```
+
+### `@classmethod`
+
+适合写工厂方法，方法的第一个参数是类本身 `cls`。
+
+```python
+class User:
+    def __init__(self, name: str):
+        self.name = name
+
+    @classmethod
+    def guest(cls) -> "User":
+        return cls("guest")
+```
+
+## typing
+
+```python
+from typing import Annotated, Literal
+
+names: list[str] = ["Tom", "Jerry"]
+scores: dict[str, int] = {"Tom": 90}
+tags: set[str] = {"python", "fastapi"}
+point: tuple[int, int] = (1, 2)
+value: str | None = None
+mode: Literal["dev", "prod"] = "dev"
+```
+
+| 写法 | 含义 |
+| --- | --- |
+| `list[str]` | 字符串列表 |
+| `dict[str, int]` | key 是字符串，value 是整数 |
+| `str \| None` | 可以是字符串，也可以是空 |
+| `Literal["a", "b"]` | 只能取固定值 |
+| `Annotated[T, meta]` | 给类型附加额外元数据 |
+
+## Pydantic
+
+### 字段校验
+
+```python
+from pydantic import BaseModel, EmailStr, Field
+
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=64)
+    age: int | None = Field(default=None, ge=0)
+```
+
+### 自定义校验
+
+```python
+from pydantic import BaseModel, Field, field_validator
+
+
+class RegisterRequest(BaseModel):
+    username: str = Field(min_length=2, max_length=20)
+    password: str = Field(min_length=8)
+
+    @field_validator("username")
+    @classmethod
+    def username_must_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("用户名不能为空")
+        return value
+```
+
+### 从 ORM 对象生成响应
+
+Pydantic v2 使用 `ConfigDict(from_attributes=True)` 读取 ORM 对象的属性。
+
+```python
+from pydantic import BaseModel, ConfigDict
+
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+
+    model_config = ConfigDict(from_attributes=True)
+```
+
+## 工程工具
+
+### uv
+
+```bash
+uv init my-project
+uv venv --python 3.11
+uv add fastapi sqlalchemy
+uv sync
+uv run python main.py
+```
+
+Windows 激活虚拟环境：
+
+```powershell
+.venv\Scripts\activate
+```
+
+### 环境变量
+
+简单脚本可以使用 `python-dotenv`：
+
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+database_url = os.getenv("DATABASE_URL")
+```
+
+业务项目使用 `pydantic-settings`：
+
+```python
+from functools import lru_cache
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    database_url: str
+    debug: bool = False
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+    )
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+```
+
+### logging
+
+```python
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+
+logger = logging.getLogger(__name__)
+logger.info("service started")
+```

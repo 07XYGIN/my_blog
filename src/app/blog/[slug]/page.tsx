@@ -4,7 +4,9 @@ import { MDXRemote } from "next-mdx-remote/rsc";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import { CodeFrame } from "@/components/code-block";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -30,10 +32,16 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   const headingCounts = new Map<string, number>();
   const content = await MDXRemote({
     source: post.source,
-    options: { mdxOptions: { remarkPlugins: [remarkGfm], rehypePlugins: [rehypeHighlight] } },
+    options: {
+      mdxOptions: {
+        remarkPlugins: [remarkGfm, remarkMath],
+        rehypePlugins: [rehypeHighlight, rehypeKatex],
+      },
+    },
     components: {
       pre: CodeFrame,
       h2: ({ children }) => <h2 id={uniqueHeadingId(String(children), headingCounts)}>{children}</h2>,
+      table: MdxTable,
     },
   });
 
@@ -75,6 +83,10 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
       </div>
     </main>
   );
+}
+
+function MdxTable({ children, ...props }: React.ComponentProps<"table">) {
+  return <div className="table-scroll"><table {...props}>{children}</table></div>;
 }
 
 function PostNav({ direction, post }: { direction: "previous" | "next"; post: Awaited<ReturnType<typeof getPosts>>[number] }) {

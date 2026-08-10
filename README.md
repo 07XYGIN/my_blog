@@ -26,6 +26,14 @@ pnpm dev
 
 当前内容按 `frontend`、`python`、`java`、`agent`、`database` 和 `other` 目录整理，共迁移 13 篇来自 Interview 笔记的文章。代码围栏支持语法高亮，表格等 GFM 语法也会正常渲染。
 
+MDX 支持 GFM 表格和 KaTeX 数学公式。行内公式使用 `$E = mc^2$`，块级公式使用：
+
+```mdx
+$$
+E = mc^2
+$$
+```
+
 ## 检查
 
 ```bash

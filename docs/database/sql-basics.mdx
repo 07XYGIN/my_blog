@@ -120,6 +120,12 @@ LIMIT 10 OFFSET 20;
 -- 条数计算公式：偏移量 = (页码 - 1) * 页大小
 ```
 
+分页偏移量可以写成行内公式 $offset = (page - 1) \times pageSize$，块级公式如下：
+
+$$
+\operatorname{offset} = (\operatorname{page} - 1) \times \operatorname{pageSize}
+$$
+
 `LIKE` 常用通配符：
 
 | 写法 | 含义 |

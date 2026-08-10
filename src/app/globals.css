@@ -118,6 +118,44 @@ html.dark .card { box-shadow: none; }
 .prose-content ul, .prose-content ol { margin: 0 0 24px; padding-left: 24px; color: var(--muted); }
 .prose-content li { margin: 7px 0; }
 .prose-content blockquote { margin: 32px 0; border-left: 3px solid var(--primary); background: var(--surface-low); padding: 18px 20px; color: var(--muted); }
+.prose-content .table-scroll {
+  margin: 32px 0;
+  overflow-x: auto;
+  border: 1px solid var(--outline);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.prose-content table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.prose-content th,
+.prose-content td {
+  border-right: 1px solid var(--outline);
+  border-bottom: 1px solid var(--outline);
+  padding: 11px 14px;
+  text-align: left;
+  vertical-align: top;
+}
+.prose-content th {
+  background: var(--surface-low);
+  color: var(--text);
+  font-weight: 650;
+}
+.prose-content td { color: var(--muted); }
+.prose-content th:last-child,
+.prose-content td:last-child { border-right: 0; }
+.prose-content tr:last-child td { border-bottom: 0; }
+.prose-content .katex { color: var(--text); }
+.prose-content .katex-display {
+  margin: 32px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 0;
+}
 .prose-content code:not(pre code) {
   font-family: "JetBrains Mono", ui-monospace, monospace;
   font-size: 14px; padding: 2px 5px; border-radius: 4px;

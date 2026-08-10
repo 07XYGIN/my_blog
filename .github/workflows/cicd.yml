@@ -41,6 +41,17 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Build static site for domestic hosting
+        run: pnpm build:static
+
+      - name: Upload static site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gin-blog-static-${{ github.sha }}
+          path: out
+          if-no-files-found: error
+          retention-days: 14
+
   deploy:
     name: Deploy to Vercel
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

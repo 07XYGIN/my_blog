@@ -3,14 +3,27 @@ import { ArrowLeft, ArrowRight, CalendarDays, Clock3 } from "lucide-react";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
+import rehypePrettyCode, { type Options as RehypePrettyCodeOptions } from "rehype-pretty-code";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import { CodeFrame } from "@/components/code-block";
+import { getMdxComponents } from "@/components/mdx/mdx-blocks";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { getPost, getPosts, uniqueHeadingId } from "@/lib/posts";
+import { getPost, getPosts } from "@/lib/posts";
+import { remarkMermaid } from "@/lib/remark-mermaid";
+
+const prettyCodeOptions: RehypePrettyCodeOptions = {
+  defaultLang: { block: "plaintext" },
+  grid: true,
+  keepBackground: false,
+  theme: "github-dark",
+  onVisitLine(node) {
+    if (node.children.length === 0) {
+      node.children = [{ type: "text", value: " " }];
+    }
+  },
+};
 
 export async function generateStaticParams() {
   return (await getPosts()).map((post) => ({ slug: post.slug }));
@@ -34,15 +47,11 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
     source: post.source,
     options: {
       mdxOptions: {
-        remarkPlugins: [remarkGfm, remarkMath],
-        rehypePlugins: [rehypeHighlight, rehypeKatex],
+        remarkPlugins: [remarkGfm, remarkMath, remarkMermaid],
+        rehypePlugins: [rehypeKatex, [rehypePrettyCode, prettyCodeOptions]],
       },
     },
-    components: {
-      pre: CodeFrame,
-      h2: ({ children }) => <h2 id={uniqueHeadingId(String(children), headingCounts)}>{children}</h2>,
-      table: MdxTable,
-    },
+    components: getMdxComponents(headingCounts),
   });
 
   return (
@@ -83,10 +92,6 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
       </div>
     </main>
   );
-}
-
-function MdxTable({ children, ...props }: React.ComponentProps<"table">) {
-  return <div className="table-scroll"><table {...props}>{children}</table></div>;
 }
 
 function PostNav({ direction, post }: { direction: "previous" | "next"; post: Awaited<ReturnType<typeof getPosts>>[number] }) {

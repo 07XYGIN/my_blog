@@ -1,17 +1,18 @@
 # Gin Blog
 
-Gin 的个人技术博客，内容由 `docs/` 目录下的 MDX 文件驱动，支持继续按主题细分子目录。
+Gin 的个人技术博客。文章内容来自 `docs/` 目录下的 MDX 文件，可以按 `frontend`、`python`、`java`、`agent`、`database`、`other` 等主题继续细分。
 
 ## 技术栈
 
 - Next.js App Router、React、TypeScript
 - Tailwind CSS、shadcn/ui、Motion
-- next-mdx-remote、remark-gfm、rehype-highlight
+- next-mdx-remote、remark-gfm、remark-math、rehype-katex
+- Mermaid、Shiki、Recharts
 - pnpm
 
-## 本地开发
+## 本地运行
 
-需要 Node.js 22 与 pnpm 11。
+需要 Node.js 22 和 pnpm 11。
 
 ```bash
 pnpm install
@@ -22,11 +23,36 @@ pnpm dev
 
 ## 添加文章
 
-在 `docs` 或其任意子目录新增 `.mdx` 文件，并填写与现有文章一致的 frontmatter。文件名会生成文章 slug，首页分类、文章详情、目录和相邻文章会自动生成。
+在 `docs/` 或任意子目录中新建 `.mdx` 文件，并填写 frontmatter：
 
-当前内容按 `frontend`、`python`、`java`、`agent`、`database` 和 `other` 目录整理，共迁移 13 篇来自 Interview 笔记的文章。代码围栏支持语法高亮，表格等 GFM 语法也会正常渲染。
+```mdx
+---
+title: '文章标题'
+description: '文章描述'
+category: '前端'
+tags: 'React,Next.js'
+date: '2026-08-11'
+readTime: '8 分钟'
+author: 'Gin'
+---
+```
 
-MDX 支持 GFM 表格和 KaTeX 数学公式。行内公式使用 `$E = mc^2$`，块级公式使用：
+文件名会生成文章 slug。首页分类、文章详情、目录和相邻文章会自动生成。
+
+## MDX 能力
+
+### 表格
+
+```mdx
+| 技术 | 用途 |
+| --- | --- |
+| Next.js | 页面与路由 |
+| MDX | 内容渲染 |
+```
+
+### LaTeX
+
+行内公式使用 `$E = mc^2$`，块级公式使用：
 
 ```mdx
 $$
@@ -34,44 +60,115 @@ E = mc^2
 $$
 ```
 
+### Mermaid 流程图
+
+````mdx
+```mermaid title="学习路径"
+graph TD
+  A[基础语法] --> B[项目实践]
+  B --> C[复盘总结]
+```
+````
+
+页面中的 Mermaid 图表支持滚轮缩放、按钮缩放、拖拽平移和复位。
+
+### Callout 提示块
+
+```mdx
+<Callout type="interview" title="面试重点">
+闭包常考作用域链、变量生命周期和内存泄漏。
+</Callout>
+```
+
+`type` 支持 `note`、`tip`、`warning`、`danger`、`interview`。
+
+### 代码块
+
+````mdx
+```ts title="useCounter.ts" showLineNumbers {2}
+const count = 0
+const next = count + 1
+```
+````
+
+支持文件名、复制按钮、行号、指定行高亮和 Shiki 语法高亮。
+
+### Tabs
+
+```mdx
+<Tabs defaultValue="react">
+  <TabsList>
+    <TabsTrigger value="react">React</TabsTrigger>
+    <TabsTrigger value="vue">Vue</TabsTrigger>
+  </TabsList>
+  <TabsContent value="react">React 示例内容</TabsContent>
+  <TabsContent value="vue">Vue 示例内容</TabsContent>
+</Tabs>
+```
+
+### 图表
+
+```mdx
+<BarChartBlock
+  title="学习投入"
+  data={[
+    { name: "前端", value: 80 },
+    { name: "Python", value: 65 },
+    { name: "Agent", value: 72 }
+  ]}
+/>
+```
+
+也可以使用 `<LineChartBlock />`、`<AreaChartBlock />`，或 `<ChartBlock type="bar" />`。
+
+### 文件树
+
+```mdx
+<FileTree
+  rootLabel="my_blog"
+  tree={[
+    "src/app/page.tsx",
+    "src/components/post-explorer.tsx",
+    "docs/frontend/javascript-core.mdx"
+  ]}
+/>
+```
+
+### 步骤块
+
+```mdx
+<Steps>
+  <Step title="安装依赖">运行 `pnpm install`。</Step>
+  <Step title="启动项目">运行 `pnpm dev`。</Step>
+</Steps>
+```
+
+### 折叠内容
+
+```mdx
+<Details title="展开查看答案">
+这里可以放解析、代码或补充资料。
+</Details>
+```
+
 ## 检查
 
 ```bash
 pnpm lint
 pnpm build
-```
-
-## 国内静态托管
-
-项目支持生成纯静态站点，可部署到腾讯云 EdgeOne Pages、CloudBase、COS 或阿里云 OSS：
-
-```bash
 pnpm build:static
 ```
-
-构建产物位于 `out` 目录。GitHub Actions 会在每次检查时生成并保存静态站点 Artifact。
-
-腾讯云 CloudBase 静态托管已连接 GitHub 仓库 `07XYGIN/my_blog` 的 `main` 分支，推送主分支会自动构建并更新站点：
-
-- 国内访问：[https://gin-blog-gin-d0ghqbprg7d3819db.webapps.tcloudbase.com](https://gin-blog-gin-d0ghqbprg7d3819db.webapps.tcloudbase.com)
-- CloudBase 环境：`gin`（`gin-d0ghqbprg7d3819db`）
-- 应用：`gin-blog`
-
-CloudBase 连接 GitHub 时使用以下配置：
-
-- 框架预设：Next.js（静态导出）
-- Node.js：24
-- 安装命令：`npx pnpm@11.16.0 install --frozen-lockfile`
-- 构建命令：`npx pnpm@11.16.0 build:static`
-- 输出目录：`out`
-- 生产分支：`main`
-
-如需使用中国大陆加速节点，自定义域名需要先完成 ICP 备案；未备案域名可先使用香港或亚太节点。
 
 ## 部署
 
 海外生产地址：[https://xygin.vercel.app](https://xygin.vercel.app)
 
-CloudBase 默认域名适合开发测试，存在访问频率限制和稳定性风险。正式使用建议绑定自有域名；中国大陆节点通常还需要完成 ICP 备案。
+国内访问地址：[https://gin-blog-gin-d0ghqbprg7d3819db.webapps.tcloudbase.com](https://gin-blog-gin-d0ghqbprg7d3819db.webapps.tcloudbase.com)
 
-Pull Request 会执行 Lint 与构建检查；推送到 `main` 后，GitHub Actions 会自动部署到 Vercel。
+项目支持静态导出：
+
+```bash
+pnpm build:static
+```
+
+构建产物位于 `out/` 目录。推送到 `main` 分支后，Vercel 和 CloudBase 会按已配置的 CI/CD 流程自动部署。

@@ -63,7 +63,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             <p className="eyebrow">文章目录</p>
             <nav className="mt-4 flex flex-col gap-1">
               {post.toc.map((item, itemIndex) => (
-                <a className="focus-ring rounded-lg border-l-2 border-transparent px-3 py-2 text-sm leading-5 text-[var(--muted)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-low)] hover:text-[var(--text)]" href={`#${item.id}`} key={item.id}>
+                <a className="focus-ring rounded-lg border-l-2 border-transparent py-2 pr-3 text-sm leading-5 text-[var(--muted)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-low)] hover:text-[var(--text)]" href={`#${item.id}`} key={item.id} style={{ paddingLeft: `${Math.max(item.level - 1, 0) * 12 + 12}px` }}>
                   <span className="meta mr-2 text-[10px] text-[var(--primary)]">{String(itemIndex + 1).padStart(2, "0")}</span>{item.title}
                 </a>
               ))}

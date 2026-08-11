@@ -1,0 +1,259 @@
+---
+title: 'LangChain & LangGraph '
+description: '从 Chain、工具调用与记忆，到 LangGraph 状态图、持久化和流式输出的完整实践。'
+category: 'Agent'
+tags: 'LangChain,LangGraph,Agent'
+date: '2026-08-11'
+readTime: '38 分钟'
+author: 'Gin'
+---
+[LangChain 官方文档(点击进入)](https://python.langchain.com/)
+
+## Package
+<Details title="需要的包">
+```sh
+uv add langchain                      # 基础包
+uv add langchain-core                 # 最底层核心抽象，例如 Prompt、Message、Runnable
+uv add langchain-ollama               # 调用 Ollama LLM 服务
+uv add langchain-openai               # 调用 OpenAI 兼容模型
+uv add langchain-community            # 第三方集成包
+uv add langchain-classic              # 历史兼容包
+uv add langgraph                      # LangGraph 图运行时
+uv add langgraph-checkpoint-postgres  # 检查点持久化
+uv add langchain-postgres             # langchain的postgresql工具集
+uv add langchain-huggingface          # 文字向量化模型
+```
+</Details>
+
+## create_agent
+### LLM
+~~~py
+from langchain_openai import ChatOpenAI
+
+LLM = ChatOpenAI(
+    model="xxx",
+    temperature="xxx"
+)
+~~~
+
+### Messages
+
+- `SystemMessage` 系统提示词
+- `HumanMessage`  人类提示词
+- `AIMessage`     AI的回复
+
+~~~py
+# 结合提示词实现和基本的llm聊天
+
+from langchain_openai import ChatOpenAI
+
+LLM = ChatOpenAI(
+    model="xxx",
+    temperature="xxx"
+)
+
+# 构造聊天记录 系统提示词->用户提示词->AI的回复
+messages = [
+    SystemMessage(content="你是一个有用的 AI 助手"),
+    HumanMessage(content="你好"),
+    AIMessage(content="你好"),
+    HumanMessage(content="做一个自我介绍")
+]
+
+result = llm.invoke(messages)
+
+print(result.content) # 获取AI的回复
+~~~
+
+#### Prompt Engineering
+
+### tool
+
+基础LLM仅依赖于训练数据中的参数化知识进行‘用户输入-llm输出’,存在知识滞后和无法操作外部系统的局限性
+
+`Tool Calling`通过向`LLM`提供外部函数的定义(如函数名、参数及用途描述等),使LLM能够在需要时,输出结构化的调用指令。
+
+但是,`LLM`本身没有**调用**tool的动作,只能生成调用意图,需要开发者主动实现调用逻辑
+
+<Details title="手写">
+    <Steps>
+        <Step title="tool本质是一个函数">
+        ~~~py
+        def get_weather(city: str) -> str:
+            return f"{city}的天气是25度"
+        ~~~
+        </Step>
+        <Step title="定义schema">
+        ~~~py
+        get_weather_schema = {
+            "name": "get_weather",
+            "description": "查询指定城市当前天气",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "城市名称,比如'北京'"
+                    }
+                },
+                "required": ["city"]
+            }
+        }
+        ~~~
+        </Step>
+        <Step title="用户查询天气,llm判断调用tool,返回结构化数据;tool_calls始终是一个list,调用几个工具list里就有几项">
+        ~~~json
+        {"tool_calls": [
+            {
+                "name": "get_weather",
+                "args": {
+                    "city": "南京"
+                },
+                "id": "call_00_1eMoGmD8V4vSSaqUFaxb3571",
+                "type": "tool_call"
+            }
+        ]}
+        ~~~
+        </Step>
+        <Step title="开发者主动实现调用逻辑">
+        ~~~py
+        # 伪代码
+        while Ture:
+        xxx
+        for tool_call in response.tool_calls:
+            if tool_call["type"] == "tool_call":
+                result = get_weather(**tool_call["args"]) 
+        ~~~
+        </Step>
+    </Steps>
+</Details>
+
+<Details title="使用@tool装饰器实现(参考官网)">
+~~~py
+from langchain.tools import tool
+
+@tool
+def search_database(query: str, limit: int = 10) -> str:
+    """Search the customer database for records matching the query.
+
+    Args:
+        query: Search terms to look for
+        limit: Maximum number of results to return
+    """
+    return f"Found {limit} results for '{query}'"
+
+"""
+    除了返回str 也可以返回其他类型,如：
+    
+    list: return [
+        {"type": "text", "text": "Screenshot of the current page:"},
+        {"type": "image", "url": "https://example.com/page.png"},
+    ]
+
+    dict: return {
+        "city": city,
+        "temperature_c": 22,
+        "conditions": "sunny",
+    }
+
+"""
+~~~
+</Details>
+
+<Details title="流程图">
+~~~mermaid
+    flowchart TD
+    A["用户输入查询"] --> B{"LLM 判断<br/>是否需要调用工具?"}
+
+    B -->|否| C["LLM 直接生成文本回复"]
+    C --> D["返回给用户"]
+
+    B -->|是| E["LLM 输出结构化调用指令<br/>tool_calls 列表"]
+
+    E --> F["遍历 tool_calls"]
+
+    F --> H["提取工具名称 name"]
+    F --> I["提取参数 args"]
+    F --> J["提取调用ID id"]
+
+    H --> K["根据名称匹配对应函数"]
+    I --> L["将 args 作为参数传入"]
+
+    K --> N["执行工具函数"]
+    L --> N
+
+    N --> O["获取工具执行结果"]
+    J --> P["result 与 id 绑定,<br/>封装为 tool_result"]
+    O --> P
+
+    P --> Q["将 tool_result 加入消息历史,<br/>再次调用 LLM"]
+    Q --> B
+~~~
+
+~~~python
+# 代码实现
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AIMessage
+from learn.tool.tools import get_weather
+from app.core.llms import DEEPSEEK, create_llm
+llm = create_llm(DEEPSEEK).bind_tools([get_weather])
+tools_map = {"get_weather": get_weather}
+messages = [
+    SystemMessage(content="你是一个有用的 AI 助手,请给出详细技术回答。如果用户询问某个城市的天气 需要你调用 get_weather Tool"),
+    HumanMessage(content="你好,帮我查询一下南京的天气"),
+]
+response:AIMessage = llm.invoke(messages)
+messages.append(response)
+print(response)
+while True:
+    if response.tool_calls:
+        for call in response.tool_calls:
+            tool_fn = tools_map[call["name"]]
+            result = tool_fn.invoke(call["args"])
+            messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+        response = llm.invoke(messages)   # ← 关键：把新的回复存回 response
+        messages.append(response)          # ← 别忘了把这轮 AIMessage 也加入历史，否则下一轮模型看不到自己刚才说了什么
+    else:
+        break
+
+print(response.content)
+
+
+
+~~~
+</Details>
+#### ReAct
+
+ReAct是基于 tool 循环的一种具体用法,两者属于包含关系。
+
+和上述的tool loop相比 ReAct多了一层 `Thought`
+
+`Thought` 本质上是"模型写给自己看的推理草稿,用来指导下一步行动",顺便也能展示给用户看;不是"为了讲给用户听"而存在的。
+
+
+ReAct 在 tool loop 不变的循环结构上,通过 prompt(比如 system message)要求模型在每一轮输出里,
+除了 tool_calls,还要附带一段显式的推理文本;这段文本和 tool_calls 一起构成同一个 response,
+随着正常的 messages.append(response) 自动留在了后续轮次能看到的历史里。
+<Tabs defaultValue="ReAct">
+    <TabsList>
+    <TabsTrigger value="ReAct">ReAct</TabsTrigger>
+    <TabsTrigger value="tool loop">tool loop</TabsTrigger>
+    </TabsList>
+    <TabsContent value="ReAct">
+    用户: 帮我查一下天气,再告诉我适不适合今天晒被子<br />
+    LLM:
+        Thought: 用户想知道天气以及是否适合晒被子,我需要先查天气数据,再判断天气条件是否适合晒被子(比如是否晴天、是否有雨)。<br />
+        Action: get_weather(city="xxx")<br /> 执行的tool name
+        Observation: 25度,晴<br />  执行的结果
+        Thought: 25度、晴天,没有降水,风力信息虽然没有但一般来说晴天适合晒被子,可以给出结论了。<br />
+        Answer: 今天25度晴天,很适合晒被子。<br />
+    
+    </TabsContent>
+    <TabsContent value="tool loop">
+    用户: 帮我查一下天气,再告诉我适不适合今天晒被子<br />
+    LLM: [直接输出 tool_calls: get_weather(city="")]<br />
+    工具返回: 25度,晴<br />
+    LLM: 今天25度晴天,适合晒被子。<br />
+    </TabsContent>
+</Tabs>
+
+## langgraph

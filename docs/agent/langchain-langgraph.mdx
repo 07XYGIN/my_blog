@@ -89,6 +89,11 @@ async for chunk in chain.astream({"input": "你好"}):
 
 ```
 
+### llm
+
+
+#### dormat 
+
 
 注意：
 
@@ -96,9 +101,9 @@ async for chunk in chain.astream({"input": "你好"}):
 - 如果要真正的 LLM 打字机效果，需要模型参与
 - 打字机效果本质是 LLM token streaming
 
-## 使用pydantic结构化输出
+## 结构化输出
 
-结构化输出用于让LLM返回固定格式，减少llm出现幻觉的可能性。
+结构化输出用于让LLM返回固定格式，减少llm出现幻觉概率。
 
 ```python
 from pydantic import BaseModel, Field
@@ -119,8 +124,21 @@ result = structured_llm.invoke("你好")
 print(result.content)
 print(result.emotion)
 ```
+## message
+
+
+
 
 ## tool
+基础LLM仅依赖于训练数据中的参数化知识进行‘用户输入-llm输出’,存在知识滞后和无法操作外部系统的局限性
+
+`Tool Calling`通过向`LLM`提供外部函数的定义(如函数名、参数及用途描述等),使LLM能够在需要时,输出结构化的调用指令。
+
+<Details title="手动实现一个tool">
+```python
+
+```
+</Details>
 
 Agent 可以根据提示词按需使用工具,使用 `@tool` 装饰器
 

@@ -21,6 +21,19 @@ const calloutMeta: Record<CalloutKind, { title: string; icon: React.ElementType;
   interview: { title: "面试重点", icon: CheckCircle2, className: "border-[var(--primary)] bg-[var(--primary-soft)]" },
 };
 
+function createHeading<Tag extends "h1" | "h2" | "h3" | "h4" | "h5" | "h6">(tag: Tag, headingCounts: Map<string, number>) {
+  return function MdxHeading({ children, ...props }: React.ComponentProps<Tag>) {
+    return React.createElement(tag, { ...props, id: uniqueHeadingId(textFromNode(children), headingCounts) }, children);
+  };
+}
+
+function textFromNode(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textFromNode).join("");
+  if (React.isValidElement<{ children?: React.ReactNode }>(node)) return textFromNode(node.props.children);
+  return "";
+}
+
 export function getMdxComponents(headingCounts: Map<string, number>) {
   return {
     figure: CodeFigure,
@@ -41,7 +54,12 @@ export function getMdxComponents(headingCounts: Map<string, number>) {
     Details,
     Badge,
     Card,
-    h2: ({ children }: React.ComponentProps<"h2">) => <h2 id={uniqueHeadingId(String(children), headingCounts)}>{children}</h2>,
+    h1: createHeading("h1", headingCounts),
+    h2: createHeading("h2", headingCounts),
+    h3: createHeading("h3", headingCounts),
+    h4: createHeading("h4", headingCounts),
+    h5: createHeading("h5", headingCounts),
+    h6: createHeading("h6", headingCounts),
   };
 }
 

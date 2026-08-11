@@ -3,27 +3,11 @@ import { ArrowLeft, ArrowRight, CalendarDays, Clock3 } from "lucide-react";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import rehypeKatex from "rehype-katex";
-import rehypePrettyCode, { type Options as RehypePrettyCodeOptions } from "rehype-pretty-code";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
 import { getMdxComponents } from "@/components/mdx/mdx-blocks";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { mdxOptions } from "@/lib/mdx-options";
 import { getPost, getPosts } from "@/lib/posts";
-import { remarkMermaid } from "@/lib/remark-mermaid";
-
-const prettyCodeOptions: RehypePrettyCodeOptions = {
-  defaultLang: { block: "plaintext" },
-  grid: true,
-  keepBackground: false,
-  theme: "github-dark",
-  onVisitLine(node) {
-    if (node.children.length === 0) {
-      node.children = [{ type: "text", value: " " }];
-    }
-  },
-};
 
 export async function generateStaticParams() {
   return (await getPosts()).map((post) => ({ slug: post.slug }));
@@ -46,10 +30,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   const content = await MDXRemote({
     source: post.source,
     options: {
-      mdxOptions: {
-        remarkPlugins: [remarkGfm, remarkMath, remarkMermaid],
-        rehypePlugins: [rehypeKatex, [rehypePrettyCode, prettyCodeOptions]],
-      },
+      mdxOptions,
     },
     components: getMdxComponents(headingCounts),
   });

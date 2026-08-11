@@ -14,9 +14,7 @@ export default function TimelinePage() {
   return (
     <main className="container section-pad">
       <header className="border-b border-[var(--outline)] pb-12 pt-8 md:pb-16 md:pt-16">
-        <p className="eyebrow">Changelog / Open source</p>
         <h1 className="mt-4 text-[clamp(3rem,8vw,6rem)] font-semibold leading-none tracking-[-0.06em]">构建轨迹</h1>
-        <p className="mt-6 max-w-2xl text-lg leading-8 text-[var(--muted)]">只记录可以从公开仓库与部署历史确认的项目节点。</p>
       </header>
       <section className="relative mx-auto mt-12 max-w-4xl md:mt-20">
         <div aria-hidden className="absolute bottom-0 left-[15px] top-0 w-px bg-[var(--outline)] md:left-[139px]" />

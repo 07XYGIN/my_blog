@@ -10,6 +10,13 @@ Gin 的个人技术博客。文章内容来自 `docs/` 目录下的 MDX 文件�
 - Mermaid、Shiki、Recharts
 - pnpm
 
+## 核心能力
+
+- 全文搜索：顶部搜索按钮或 `Ctrl + K`，可搜索标题、正文、标签和文章摘要。
+- 代码片段：`/snippets` 读取 `docs/code/`。
+- MDX 增强：支持表格、LaTeX、Mermaid、Callout、Tabs、图表、文件树、步骤块和折叠内容。
+- 静态部署：支持 Vercel 与 CloudBase，推送 `main` 后自动触发部署流程。
+
 ## 本地运行
 
 需要 Node.js 22 和 pnpm 11。
@@ -38,6 +45,30 @@ author: 'Gin'
 ```
 
 文件名会生成文章 slug。首页分类、文章详情、目录和相邻文章会自动生成。
+
+## 添加代码片段
+
+在 `docs/code/` 下新建 `.mdx` 文件：
+
+````mdx
+---
+title: 'FastAPI JWT 生成'
+description: '登录成功后生成 access token 的基础写法。'
+language: 'python'
+tags: 'FastAPI,JWT,Auth'
+date: '2026-08-11'
+---
+
+```python title="jwt.py" showLineNumbers
+from datetime import datetime, timedelta
+from jose import jwt
+
+def create_access_token(data: dict):
+    payload = data.copy()
+    payload["exp"] = datetime.utcnow() + timedelta(minutes=30)
+    return jwt.encode(payload, "secret", algorithm="HS256")
+```
+````
 
 ## MDX 能力
 

@@ -5,6 +5,7 @@ import path from "node:path";
 import { categories, type Post, type PostCategory } from "@/lib/post-types";
 
 export type PostDocument = Post & { source: string; toc: Array<{ id: string; title: string }> };
+export type SearchDocument = Post & { headings: string[]; text: string; preview: string };
 
 const docsDirectory = path.join(process.cwd(), "docs");
 
@@ -37,7 +38,10 @@ async function getMdxFiles(directory = docsDirectory): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = await Promise.all(entries.map(async (entry) => {
     const entryPath = path.join(directory, entry.name);
-    if (entry.isDirectory()) return getMdxFiles(entryPath);
+    if (entry.isDirectory()) {
+      if (directory === docsDirectory && entry.name === "code") return [];
+      return getMdxFiles(entryPath);
+    }
     return entry.isFile() && entry.name.endsWith(".mdx") ? [entryPath] : [];
   }));
   return files.flat();
@@ -45,6 +49,28 @@ async function getMdxFiles(directory = docsDirectory): Promise<string[]> {
 
 function slugFromFile(file: string) {
   return path.basename(file, ".mdx");
+}
+
+function headingsFromSource(source: string) {
+  return [...source.matchAll(/^#{2,3}\s+(.+)$/gm)].map((match) => cleanText(match[1])).filter(Boolean);
+}
+
+function cleanText(value: string) {
+  return value
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[`*_~>#\[\]()+|:-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripMdxForSearch(source: string) {
+  return cleanText(
+    source
+      .replace(/```[\s\S]*?```/g, (block) => block.replace(/^```.*\n?|```$/g, " "))
+      .replace(/~~~[\s\S]*?~~~/g, (block) => block.replace(/^~~~.*\n?|~~~$/g, " "))
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\{[\s\S]*?\}/g, " "),
+  );
 }
 
 function toPost(slug: string, metadata: Record<string, string>): Post {
@@ -92,4 +118,22 @@ export async function getPost(slug: string): Promise<PostDocument | null> {
   } catch {
     return null;
   }
+}
+
+export async function getSearchDocuments(): Promise<SearchDocument[]> {
+  const files = await getMdxFiles();
+  const documents = await Promise.all(files.map(async (file) => {
+    const raw = await readFile(file, "utf8");
+    const { metadata, source } = parseFrontmatter(raw);
+    const post = toPost(slugFromFile(file), metadata);
+    const text = stripMdxForSearch(source);
+    return {
+      ...post,
+      headings: headingsFromSource(source),
+      text,
+      preview: text.slice(0, 180),
+    };
+  }));
+
+  return documents.sort((a, b) => b.date.localeCompare(a.date));
 }

@@ -49,7 +49,7 @@ export function CodeFigure({ children, className, ...props }: PrettyCodeFigurePr
           type="button"
         >
           {copied ? <Check size={15} /> : <Copy size={15} />}
-          {copied ? "已复制" : "复制"}
+          {/* {copied ? "已复制" : "复制"} */}
         </button>
       </div>
       <div className="code-frame__body" ref={bodyRef}>{codeNodes}</div>

@@ -295,6 +295,12 @@ html.dark .prose-content .mdx-callout-danger {
 }
 .prose-content .mdx-details > div > :last-child { margin-bottom: 0; }
 
+.snippet-card summary::-webkit-details-marker { display: none; }
+.snippet-prose > :first-child { margin-top: 16px; }
+.snippet-prose > :last-child { margin-bottom: 0; }
+.snippet-prose .code-frame { margin: 16px 0 0; }
+.snippet-prose .code-frame pre { max-height: 520px; }
+
 .prose-content .mdx-file-tree ul {
   color: inherit;
   list-style: none;
@@ -372,4 +378,26 @@ html.dark .prose-content .mdx-callout-danger {
   .prose-content h2 { font-size: 24px; }
   .hero-orbit { right: -25%; top: 12%; width: 70vw; opacity: .55; }
   .about-grid { width: 75%; }
+}
+::-webkit-scrollbar {
+  width: 8px;  
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #242020;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+::-webkit-scrollbar-corner {
+  background: #f1f1f1;
 }

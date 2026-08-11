@@ -180,7 +180,7 @@ export function MermaidDiagram({ chart, title = "Mermaid", className }: MermaidD
           </span>
           <button className="focus-ring inline-flex items-center gap-1 rounded-md px-2 py-1 font-meta text-xs text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--primary)]" onClick={copySource} type="button">
             {copied ? <Check size={14} /> : <Copy size={14} />}
-            {copied ? "已复制" : "复制源码"}
+            {/* {copied ? "已复制" : "复制源码"} */}
           </button>
         </div>
       </figcaption>

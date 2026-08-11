@@ -2,7 +2,14 @@ import { Bot, GitBranch, Layers3, Rocket } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
-const events = [
+interface ev{
+  date:string
+  title:string
+  text:string
+  type:string
+}
+
+const events:ev[] = [
   { date: "2026-08-10", title: "博客接入 Vercel CI/CD", text: "主分支推送自动执行 pnpm 安装、Lint、Next.js 构建与 Vercel 生产部署。", type: "my_blog", icon: <Rocket size={18} /> },
   { date: "2026-08-06", title: "Aura 多端与 Agent 架构持续更新", text: "项目主线包含 FastAPI、LangGraph、Next.js、Vue 与 Flutter，并围绕对话、记忆和多端体验迭代。", type: "Aura", icon: <Bot size={18} /> },
   { date: "2026-07-08", title: "Templates 仓库创建", text: "开始整理 Spring Boot 与 FastAPI 的基础工程模板，复用统一响应、异常处理和常用基础设施。", type: "templates", icon: <Layers3 size={18} /> },

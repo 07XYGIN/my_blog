@@ -1,5 +1,5 @@
 ---
-title: 'LangChain 与 LangGraph 完整笔记'
+title: 'LangChain 与 LangGraph '
 description: '从 Chain、工具调用与记忆，到 LangGraph 状态图、持久化和流式输出的完整实践。'
 category: 'Agent'
 tags: 'LangChain,LangGraph,Agent'
@@ -7,34 +7,38 @@ date: '2026-08-10'
 readTime: '38 分钟'
 author: 'Gin'
 ---
-## LangChain + LangGraph 笔记
 
-## 安装
+##
 
-```bash
-uv add langchain              # 基础包
-uv add langchain-core         # 最底层核心抽象，例如 Prompt、Message、Runnable
-uv add langchain-ollama       # 调用 Ollama LLM 服务
-uv add langchain-openai       # 调用 OpenAI 兼容模型
-uv add langchain-community    # 第三方集成包
-uv add langchain-classic      # 历史兼容包
-uv add ollama                 # Ollama Python 包
-uv add langgraph              # LangGraph 图运行时
-uv add langgraph-checkpoint-postgres
-uv add langchain-postgres
-uv add langchain-huggingface
-uv add psycopg2-binary
-uv add psycopg-pool
+参考资料
+
+[LangChain 官方文档(点击进入)](https://python.langchain.com/)
+## install
+
+```sh
+uv add langchain                      # 基础包
+uv add langchain-core                 # 最底层核心抽象，例如 Prompt、Message、Runnable
+uv add langchain-ollama               # 调用 Ollama LLM 服务
+uv add langchain-openai               # 调用 OpenAI 兼容模型
+uv add langchain-community            # 第三方集成包
+uv add langchain-classic              # 历史兼容包
+uv add ollama                         # Ollama Python 包
+uv add langgraph                      # LangGraph 图运行时
+uv add langgraph-checkpoint-postgres  # 检查点持久化
+uv add langchain-postgres             # langchain的postgresql工具集
+uv add langchain-huggingface          # 文字向量化模型
+uv add psycopg2-binary                # Python 连接和操作 PostgreSQL 数据库的核心驱动库
+uv add psycopg-pool                   # pg连接池
 ```
 
-## LangChain 基础
+## LangChain
 
 LangChain 核心是把多个组件用链组合起来。
 
-- prompt 提示词
-- model 模型
-- parser 输出解析器
-- chain 上一个输出作为下一个输入
+- `prompt` 提示词
+- `model` 模型
+- `parser` 输出解析器
+- `chain` 上一个输出作为下一个输入
 
 ```python
 from langchain_core.prompts import ChatPromptTemplate
@@ -46,7 +50,9 @@ prompt = ChatPromptTemplate.from_messages([
 ])
 
 chain = prompt | model | StrOutputParser()
-
+"""
+StrOutputParser(): llm直接返回文本
+"""
 result = chain.invoke({"input": "你好"})
 ```
 
@@ -67,12 +73,22 @@ messages = template.invoke({"user_input": "想听个笑话"})
 
 ## 流式输出
 
-普通的 LangChain chain 可以使用 `stream`。
+普通的 LangChain chain 可以使用 `stream`，异步时使用`astream`。
 
 ```python
+# stream
+
 for chunk in chain.stream({"input": "你好"}):
     print(chunk, end="", flush=True)
 ```
+
+```py
+# astream
+async for chunk in chain.astream({"input": "你好"}):
+    print(chunk, end="", flush=True)
+
+```
+
 
 注意：
 
@@ -80,14 +96,16 @@ for chunk in chain.stream({"input": "你好"}):
 - 如果要真正的 LLM 打字机效果，需要模型参与
 - 打字机效果本质是 LLM token streaming
 
-## 结构化输出
+## 使用pydantic结构化输出
 
-结构化输出用于让模型返回固定格式。
+结构化输出用于让LLM返回固定格式，减少llm出现幻觉的可能性。
 
 ```python
 from pydantic import BaseModel, Field
 from typing import Literal
+from openai import OpenAI
 
+model = OpenAI(xxx)
 
 class GirlfriendResponse(BaseModel):
     content: str = Field(description="回复给用户看的文字")
@@ -102,29 +120,9 @@ print(result.content)
 print(result.emotion)
 ```
 
-## create_agent
-
-`create_agent` 是 LangChain 提供的 Agent 创建方法。
-
-它的底层运行时是 LangGraph，返回的是一个可执行的图。
-
-```python
-from langchain.agents import create_agent
-
-agent = create_agent(
-    model=model,
-    tools=[],
-    system_prompt="你是一个简洁、自然的中文助手。",
-)
-
-result = agent.invoke({
-    "messages": [{"role": "user", "content": "你好"}]
-})
-```
-
 ## tool
 
-Agent 可以根据提示词按需使用工具。
+Agent 可以根据提示词按需使用工具,使用 `@tool` 装饰器
 
 ```python
 from langchain.tools import tool
@@ -152,7 +150,9 @@ logging.basicConfig(level=logging.INFO)
 tools_map = {"get_weather": get_weather}
 
 messages = [
-        SystemMessage(content="你是一个有用的 AI 助手，请给出详细的技术回答。如果用户询问某个城市的天气，你可以使用 get_weather 工具。"),
+    SystemMessage(content="
+    你是一个有用的 AI 助手，请给出详细的技术回答。如果用户询问某个城市的天气，你可以使用 get_weather 工具。
+    "),
     HumanMessage(content="你好,帮我查询一下南京的天气"),
 ]
 

@@ -36,16 +36,6 @@ for index, fruit in enumerate(fruits,start=1):
 
 ```
 
-`**kwargs`:解包字典
-
-注意：`**kwargs` 后面不能再添加普通参数；普通参数必须放在前面，但后面仍然可以添加 `*args`。
-
-```python
-def a(**kwargs):
-    print(kwargs)
-a(name="张三", age=25, city="北京") #输出这个字典
-```
-
 ## 与或非
 and 与
 or 或
@@ -156,7 +146,7 @@ from typing import List,Dict,Tuple,Set
 ```
 
 ## 其他
-### 1. `hasattr`
+### 1. hasattr
 判断某个对象是否有某个属性
 ```python
 from dataclasses import dataclass
@@ -346,3 +336,60 @@ class toolList:
 item = toolList('join')
 
 ```
+## '*args'与'**kwargs'
+如果处理数量不确定的同类型参数,使用`*` 返回元组
+~~~python
+def concat(*strings):
+    result = ""
+    for str in strings:
+        result +=str
+    return result
+~~~
+
+如果处理数量不确定的字典，使用`**` 返回字典
+~~~python
+def requests_send(url,**requestOptions):
+    timeout = requestOptions.get("timeout")
+    method = requestOptions.get("methods")
+    header = requestOptions.get("header")
+    return f"url={url},timeout:{timeout},method:{method},header:{header}"
+~~~
+
+
+## 自定义装饰器
+装饰器本质上就是一个接收函数、返回函数的高阶函数，用来在不修改原函数代码的前提下，给它"包"上一层额外的功能。
+~~~py
+def log(func):
+    def wrapper(*args, **kwargs):
+        print(f"调用参数: args={args}, kwargs={kwargs}")
+        return func(*args, **kwargs)
+    return wrapper
+
+@log # 相当于create_user = log(create_user)
+def create_user(name, age, city='Beijing', vip=False):
+    print(f"{name}, {age}, {city}, VIP={vip}")
+
+create_user('job', 18, city='Shanghai', vip=True) # 调用参数: args=('job', 18), kwargs={'city': 'Shanghai', 'vip': True}
+
+~~~
+<Details title="有参数的装饰器">
+~~~py
+from functools import wraps
+
+def my_decorator(**kwargs):        # 第1层：用**kwargs收集任意关键字参数
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kw):
+            print(f"装饰器配置: {kwargs}")
+            return func(*args, **kw)
+        return wrapper
+    return decorator
+
+@my_decorator(times=3, delay=2, name="测试")
+def risky_function():
+    return "执行成功"
+
+risky_function()
+# 装饰器配置: {'times': 3, 'delay': 2, 'name': '测试'}
+~~~
+</Details>

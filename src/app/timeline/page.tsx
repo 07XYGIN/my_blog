@@ -1,21 +1,20 @@
-import { Bot, GitBranch, Layers3, Rocket } from "lucide-react";
+import { GitBranch, Rocket,FaceGrinning } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
 
 const events = [
   { date: "2026-08-10", title: "博客接入 Vercel CI/CD", text: "主分支推送自动执行 pnpm 安装、Lint、Next.js 构建与 Vercel 生产部署。", type: "my_blog", icon: <Rocket size={18} /> },
-  { date: "2026-08-06", title: "Aura 多端与 Agent 架构持续更新", text: "项目主线包含 FastAPI、LangGraph、Next.js、Vue 与 Flutter，并围绕对话、记忆和多端体验迭代。", type: "Aura", icon: <Bot size={18} /> },
-  { date: "2026-07-08", title: "Templates 仓库创建", text: "开始整理 Spring Boot 与 FastAPI 的基础工程模板，复用统一响应、异常处理和常用基础设施。", type: "templates", icon: <Layers3 size={18} /> },
-  { date: "2025-12-25", title: "Aura 仓库创建", text: "AI 陪伴项目从对话与记忆能力出发，逐步扩展为多客户端、多服务的完整工程。", type: "Aura", icon: <GitBranch size={18} /> },
+  { date: "2026-08-10", title: "设计个人博客", text: "基于React + Next 用于总结学习笔记和代码等", type: "my_blog", icon: <Rocket size={18} /> },
+  { date: "2026-07-08", title: "create Templates", text: "开始整理 Spring Boot 与 FastAPI 的基础工程模板，复用统一响应、异常处理和常用基础设施。", type: "templates", icon: <GitBranch size={18} /> },
+  { date: "2025-11-25", title: "create Aura ", text: "AI 陪伴项目从对话与记忆能力出发，逐步扩展为多客户端、多服务的完整工程。使用了FastAPI、langgraph、PostgreSql、pgvector", type: "Aura", icon: <GitBranch size={18} /> },
+  { date: "2023-06-05", title: "入门", text: "_", type: "Introduction", icon: <FaceGrinning size={18} /> },
 ];
 
 export default function TimelinePage() {
   return (
     <main className="container section-pad">
-      <header className="border-b border-[var(--outline)] pb-12 pt-8 md:pb-16 md:pt-16">
-        <h1 className="mt-4 text-[clamp(3rem,8vw,6rem)] font-semibold leading-none tracking-[-0.06em]">构建轨迹</h1>
-      </header>
+
       <section className="relative mx-auto mt-12 max-w-4xl md:mt-20">
         <div aria-hidden className="absolute bottom-0 left-[15px] top-0 w-px bg-[var(--outline)] md:left-[139px]" />
         <ol className="space-y-8">

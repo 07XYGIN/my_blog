@@ -58,8 +58,8 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             </nav>
           )}
         </article>
-        <aside className="sticky top-24 hidden lg:block">
-          <Card className="p-5">
+        <aside className="sticky top-24  lg:block">
+          <Card className="p-5 overflow-y-auto max-h-250" >
             <p className="eyebrow">文章目录</p>
             <nav className="mt-4 flex flex-col gap-1">
               {post.toc.map((item, itemIndex) => (

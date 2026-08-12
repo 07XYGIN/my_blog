@@ -169,30 +169,10 @@ msg = toolList('a')
 
 print(hasattr(msg,"n"))
 ```
-## 爬虫基础
-```python
-import requests as r
-from bs4 import BeautifulSoup
 
-url = 'xxxx'
-cookies = 'xxx'
-headers = {
-    "cookie": cookies
-}
+# 常用模块
 
-res = r.get(url=url, headers=headers)
-
-soup = BeautifulSoup(res.text, 'html.parser') #解析成html
-
-clean_text = ' '.join(soup.get_text().split()) # 分割成列表并连接成字符串
-
-
-```
-
-
-## 常用模块
-
-## 1. Rich
+## Rich
 一个美化输出的模块
 ```bash
 uv add rich
@@ -206,18 +186,14 @@ console.print("这是一条信息", style="bold blue") # 加粗 颜色
 console.print("这是一条消息", style="#00ff00") # 十六进制
 console.print("这是一条消息", style="rgb(0, 255, 0)") # rgb
 console.print("这是一条消息", style="on rgb(0, 255, 0)") # 背景颜色
-```
 
-```python
 console.print(
     style css
     justify 对齐方式
 )
 ```
 
-
-
-## 2. typing
+## typing
 标注类型
 ```python
 from typing import Annotated, Literal, Optional, Union
@@ -228,7 +204,7 @@ Literal["a", "b"]  # 限制变量只能取指定值
 Optional[str]  # 等价于 str | None
 ```
 
-## 3. Pydantic
+## Pydantic
 用于数据校验。
 ```python
 from pydantic import BaseModel, EmailStr, Field, SecretStr, field_validator
@@ -237,11 +213,28 @@ from pydantic import BaseModel, EmailStr, Field, SecretStr, field_validator
 # Field 用于声明数值范围、字符串正则等校验规则
 # field_validator 用于校验单个字段
 # EmailStr 校验邮箱地址，SecretStr 保护敏感字段
+# e.g.:
+
+class User(BaseModel):
+    username: str = Field(min_length=2, max_length=20, description="用户名")
+    email: EmailStr = Field(description="邮箱")
+    age: int = Field(ge=0, le=150, description="年龄")
+    password: str = Field(min_length=6, description="密码")
+
+
+"""
+min_length: 最小长度
+max_length: 最大长度
+ge:大于等于
+le:小于等于
+gt:大于
+lt:小于
+"""
 ```
 
 
-## 4. 环境变量
-### 4.1 dotenv + os
+## env
+
 ```python
 from dotenv import load_dotenv
 import os
@@ -255,7 +248,32 @@ api_key = os.getenv('DB_PORT')
 
 ```
 
-## 5. logging
+## yaml
+
+~~~yaml
+keywords:
+    - 解脱者
+
+name:
+    - 塞拉斯
+~~~
+
+~~~py
+from pathlib import Path
+import yaml
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent # 得到项目根目录
+def get_yaml(filename: str = "keywords.yaml") -> dict:
+    config_path = PROJECT_ROOT / filename
+    with open(config_path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+getyaml() # {'keywords': ['解脱者'], 'name': ['塞拉斯']}
+
+
+~~~
+
+## logging
 
 `logging` 是 Python 标准库，无需额外安装。
 
@@ -297,9 +315,9 @@ format = (
 
 
 
-## 常用装饰器
+# 常用装饰器
 
-## 1.1 @property
+## @property
 将方法变成属性，只读
 
 ```python
@@ -311,7 +329,7 @@ person.age  # 像访问属性一样访问，不加括号
 ```
 
 
-## 1.2 @dataclass
+## @dataclass
 自动生成`__init__`,  `__repr__` , `__eq__`等方法
 ```python
 from dataclasses import dataclass
@@ -326,30 +344,5 @@ class toolList:
         return obj
 
 item = toolList('join')
-
-```
-## 加密
-
-```bash
-uv add passlib
-```
-
-```python
-from passlib.context import CryptContext
-
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
-"""
-schemes:加密算法
-deprecated:标记旧算法过时
-"""
-
-def get_password_hash(password: str) -> str:
-    """返回密码哈希。"""
-    return pwd_context.hash(password)
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """校验明文密码与哈希值是否匹配。"""
-    return pwd_context.verify(plain_password, hashed_password)
-
 
 ```

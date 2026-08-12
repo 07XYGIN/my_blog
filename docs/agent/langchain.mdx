@@ -1,10 +1,10 @@
 ---
-title: 'LangChain & LangGraph '
-description: '从 Chain、工具调用与记忆，到 LangGraph 状态图、持久化和流式输出的完整实践。'
+title: 'LangChain'
+description: 'Chain、TOOL、memory'
 category: 'Agent'
 tags: 'LangChain,LangGraph,Agent'
 date: '2026-08-11'
-readTime: '38 分钟'
+readTime: '5分钟'
 author: 'Gin'
 ---
 [LangChain 官方文档(点击进入)](https://python.langchain.com/)
@@ -64,8 +64,6 @@ result = llm.invoke(messages)
 
 print(result.content) # 获取AI的回复
 ~~~
-
-#### Prompt Engineering
 
 ### tool
 
@@ -255,5 +253,3 @@ ReAct 在 tool loop 不变的循环结构上,通过 prompt(比如 system message
     LLM: 今天25度晴天,适合晒被子。<br />
     </TabsContent>
 </Tabs>
-
-## langgraph

@@ -1,0 +1,216 @@
+---
+title: 'webspider与 Scrapy'
+description: ''
+category: 'Python'
+tags: 'Scrapy,webspider,Python'
+date: '2026-08-06'
+readTime: '6 分钟'
+author: 'Gin'
+---
+参考
+
+崔庆才. Python 3网络爬虫开发实战[M]. 第2版. 北京: 人民邮电出版社, 2021.
+
+## log
+~~~py
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+
+~~~
+
+## 从接口抓取数据
+
+从普通的没有任何安全的措施的接口中获取数据
+
+url:"https://spa1.scrape.center/"
+
+~~~py
+import logging
+import requests as r
+import time
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+
+def api_spider():
+    url = "https://spa1.scrape.center/api/movie/"
+    params = {
+        "limit":10,
+        "offset":0
+    }
+    i = 0
+    with open("spider_.txt", "a", encoding="utf-8") as file:
+        while True:
+            response:dict = r.get(url="https://spa1.scrape.center/api/movie/",params=params).json()
+            result = response.get('results',{})
+            if not result :
+                break
+            total:int = response.get('count')
+            if i >= total:
+                break
+            for item in result:
+                id = item.get('id')
+                details = r.get(url=f"{url}{id}").json()
+                file.write(f"ID: {details.get('id')}\n")
+                file.write(f"名称: {details.get('name')}\n")
+                file.write(f"详情: {details.get('drama')}\n")
+                file.write(f"创建时间: {details.get('published_at')}\n")
+                file.write(f"评分: {details.get('score')}\n")
+                file.write("-" * 30 + "\n")
+            i = i + 10
+            params['offset'] = i
+            time.sleep(1)
+
+
+
+if __name__ == "__main__":
+    api_spider()
+~~~
+
+
+## 对于SSR网站的抓取模式
+使用BeautifulSoup分析DOM
+~~~py
+def ssr_spider():
+    baseurl = "https://login2.scrape.center/login"
+    body = {
+        "username":"admin",
+        "password":"admin"
+    }
+    result = r.post(url = baseurl,data = body,allow_redirects=False) # 拿到原始响应
+
+    cookies = result.cookies
+    data = r.get("https://login2.scrape.center/",cookies=cookies) # 拿到html
+    soup = BeautifulSoup(data.text, 'html.parser')
+
+    movie_cards = soup.select('.el-card.item') # 使用bs4分析DOM结构
+    for card in movie_cards:
+        detail_link = card.select_one('.name')['href'] 
+        movie_id = detail_link.split('/')[-1] 
+        name_tag = card.select_one('.name h2')
+        name = name_tag.text.strip() 
+        category_tags = card.select('.categories .category span')
+        categories = [cat.text.strip() for cat in category_tags]
+        info_tags = card.select('.info span')
+        if len(info_tags) >= 3:
+            region = info_tags[0].text.strip()
+            duration = info_tags[2].text.strip()
+        else:
+            region = ""
+            duration = ""
+~~~
+## Scrapy
+
+### 创建项目
+
+```bash
+uv run scrapy startproject water_tenders .
+```
+
+### 常用命令
+
+```bash
+uv run scrapy genspider ggzyfw.beijing ggzyfw.beijing.gov.cn # 新建一个 spider，文件名为 ggzyfw.beijing，对应 URL 为 ggzyfw.beijing.gov.cn
+
+uv run scrapy list # 查询项目中有哪些 spider
+
+uv run scrapy crawl genspider # 运行指定 spider
+
+uv run scrapy shell "https://example.com" # 调试网页
+```
+
+### 文件目录
+```python
+water_tenders/ # 真正的 Scrapy 项目包
+    items.py # 定义要抓取的数据结构，例如公告标题、发布时间、来源网站、详情链接和正文。
+    middlewares.py # 请求和响应处理中间件，例如请求头、代理、重试和 Cookie。
+    pipelines.py # 数据处理管道，用于去重、清洗、写入 Excel 或数据库。
+    settings.py # Scrapy 全局设置，例如并发数、下载延迟和 robots.txt 策略。
+    spiders/ # 存放爬虫文件，每个网站通常对应一个 spider。
+    __init__.py
+scrapy.cfg # Scrapy 的配置入口。告诉 Scrapy 默认设置文件在哪里
+```
+
+
+### settings.py
+
+
+```python
+# Scrapy settings for water_tenders project
+
+BOT_NAME = "water_tenders"
+SPIDER_MODULES = ["water_tenders.spiders"]
+NEWSPIDER_MODULE = "water_tenders.spiders"
+
+# ========== 请求与反爬 ==========
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+ROBOTSTXT_OBEY = False  # 很多网站robots.txt限制严格，爬取公开数据可关闭
+DOWNLOAD_DELAY = 2       # 请求间隔2秒
+CONCURRENT_REQUESTS_PER_DOMAIN = 2  # 每域名并发数
+RANDOMIZE_DOWNLOAD_DELAY = True  # 在延迟基础上随机±0.5秒，更像真人
+
+# ========== 请求头 ==========
+DEFAULT_REQUEST_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+}
+
+# ========== 下载中间件（常用的几个） ==========
+DOWNLOADER_MIDDLEWARES = {
+    "scrapy.downloadermiddlewares.useragent.UserAgentMiddleware": None,  # 禁用默认UA
+    "scrapy.downloadermiddlewares.retry.RetryMiddleware": 90,
+    "scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware": 110,
+}
+
+# ========== 重试机制 ==========
+RETRY_ENABLED = True
+RETRY_TIMES = 3  # 失败重试3次
+RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429]  # 这些状态码触发重试
+
+# ========== 重定向 ==========
+REDIRECT_ENABLED = True
+REDIRECT_MAX_TIMES = 3  # 最多跟随3次重定向
+
+# ========== 超时设置 ==========
+DOWNLOAD_TIMEOUT = 30  # 下载超时30秒
+
+# ========== 数据管道 ==========
+ITEM_PIPELINES = {
+    # "water_tenders.pipelines.WaterTendersPipeline": 300,  # 取消注释启用
+}
+
+# ========== 自动限速（推荐） ==========
+AUTOTHROTTLE_ENABLED = True
+AUTOTHROTTLE_START_DELAY = 1.0
+AUTOTHROTTLE_MAX_DELAY = 10.0
+AUTOTHROTTLE_TARGET_CONCURRENCY = 1.0
+AUTOTHROTTLE_DEBUG = False
+
+# ========== 日志 ==========
+LOG_LEVEL = "INFO"
+LOG_FILE = "logs/scrapy.log"
+LOG_FILE_APPEND = True
+LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
+
+# ========== 输出编码 ==========
+FEED_EXPORT_ENCODING = "utf-8"
+
+# ========== 内存/性能 ==========
+MEMUSAGE_ENABLED = True  # 监控内存使用
+MEMUSAGE_LIMIT_MB = 512  # 内存超过512MB时警告
+CLOSESPIDER_TIMEOUT = 3600  # 爬虫运行1小时后自动关闭（防止死循环）
+
+# ========== 调试（开发时启用） ==========
+# HTTPCACHE_ENABLED = True  # 开发时启用缓存，避免重复请求
+# HTTPCACHE_EXPIRATION_SECS = 86400  # 缓存24小时
+# HTTPCACHE_DIR = "httpcache"
+# HTTPCACHE_IGNORE_HTTP_CODES = [500, 502, 503]
+```

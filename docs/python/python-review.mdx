@@ -113,13 +113,20 @@ raise ValueError("错误")
 ## 数据类型
 ### str
 - title() 首字母大写
-
 ### 类型转换
 - str()
 - int()
 
 ### dict
 `dict.update()`：向字典中插入或更新键值对。
+
+~~~py
+# 获取字典的某个值
+object:Dict[str,int] = {"age":17}
+
+object.get("age",{}) 
+object["age"]
+~~~
 
 ### tuple
 ```python
@@ -129,6 +136,22 @@ b, c = tuples
 b # a
 c # b
 ```
+## file
+~~~py
+with open("my_file.txt","w",encoding="utf-8") as file:
+    file.write("使用 with 语句写入的内容\n")
+    file.write("第二行内容")
+"""
+file.writelines(lines:list[any,any]):写入多条数据
+"""
+~~~
+
+open() 函数的第二个参数决定了写入行为：
+| 模式 | 说明 | 文件不存在 | 文件存在 |
+| :--- | :--- | :--- | :--- |
+| `'w'` | 写入（覆盖） | 自动创建 | 覆盖原内容 |
+| `'a'` | 追加 | 自动创建 | 在末尾添加内容 |
+| `'x'` | 独占创建 | 自动创建 | 抛出 `FileExistsError` 异常 |
 
 ## typing
 像 TypeScript 一样，为 Python 添加类型标注。
@@ -304,7 +327,22 @@ format = (
 ```
 
 
+## json
+~~~py
+import json
+data = {
+    "name": "张三",
+    "age": 25,
+    "hobbies": ["读书", "游泳"],
+    "is_active": True
+}
+# 序列化 python dict -> json
+json_str = json.dumps(data,indent=2)
 
+# 反序列化 json -> python dict
+data = json.loads(json_str)
+
+~~~
 # 常用装饰器
 
 ## @property

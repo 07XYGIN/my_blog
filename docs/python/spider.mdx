@@ -104,6 +104,7 @@ def ssr_spider():
             region = ""
             duration = ""
 ~~~
+
 ## Scrapy
 
 ### 创建项目
@@ -112,6 +113,7 @@ def ssr_spider():
 uv run scrapy startproject water_tenders .
 ```
 
+
 ### 常用命令
 
 ```bash
@@ -119,14 +121,14 @@ uv run scrapy genspider ggzyfw.beijing ggzyfw.beijing.gov.cn # 新建一个 spid
 
 uv run scrapy list # 查询项目中有哪些 spider
 
-uv run scrapy crawl genspider # 运行指定 spider
+uv run scrapy crawl genspider -L WARNING # 运行指定 spider,且只展示WARGING级别的日志
 
-uv run scrapy shell "https://example.com" # 调试网页
+uv run scrapy shell "https://example.com" -s ROBOTSTXT_OBEY=False # 调试网页 绕过 robots.txt
 ```
 
 ### 文件目录
 ```python
-water_tenders/ # 真正的 Scrapy 项目包
+water_tenders/ # Scrapy 项目包
     items.py # 定义要抓取的数据结构，例如公告标题、发布时间、来源网站、详情链接和正文。
     middlewares.py # 请求和响应处理中间件，例如请求头、代理、重试和 Cookie。
     pipelines.py # 数据处理管道，用于去重、清洗、写入 Excel 或数据库。
@@ -136,6 +138,153 @@ water_tenders/ # 真正的 Scrapy 项目包
 scrapy.cfg # Scrapy 的配置入口。告诉 Scrapy 默认设置文件在哪里
 ```
 
+
+
+### start
+
+示例 抓取 https://quotes.toscrape.com/ 文章列表
+
+<Details title="">
+    <Steps>
+        <Step title="新建spider">
+            ~~~sh
+                scrapy genspider toscrape https://quotes.toscrape.com/
+            ~~~
+            ~~~py
+            #toscrape.py
+            import scrapy
+
+
+            class ToscrapeSpider(scrapy.Spider):
+                name = "toscrape" # spider name
+                allowed_domains = ["quotes.toscrape.com"] # 允许爬取的域名
+                start_urls = ["https://quotes.toscrape.com/"] # 从哪个域名开始
+
+                def parse(self, response):
+                    pass
+
+
+            ~~~
+        </Step>
+        <Step title="定义爬取数据的数据结构">
+        ~~~python
+        # item.py
+        """
+        **官网解释:**
+
+        抓取的主要目标是从非结构化数据源中提取结构化数据，通常这些数据源是网页。
+        spider可以将这些提取的数据以特定格式返回，比如作为项目呈现，或者以 Python 对象的形式呈现，这些对象可以表示键值对。
+
+        可以有多个item
+        
+        """
+        from dataclasses import dataclass
+
+
+        @dataclass
+        class QuoteItem:
+            text: str | None = None
+            author: str | None = None
+            tags: list[str] | None = None
+        ~~~
+        </Step>
+        <Step title="分析DOM结构 / 从接口抓取数据">
+        ~~~py
+        import scrapy
+        from water_tenders.items import QuoteItem          
+
+        class ToscrapeSpider(scrapy.Spider):
+            name = "toscrape"
+            allowed_domains = ["quotes.toscrape.com"]
+            start_urls = ["https://quotes.toscrape.com/"]          
+
+            def parse(self, response):
+                for quote_item in response.css("div.quote"):
+                    item = QuoteItem()
+                    item.author = quote_item.css("small.author::text").extract_first()
+                    item.tags = quote_item.css("div.tags a.tag::text").extract()
+                    item.text = quote_item.css("div.quote span.text::text").extract_first()
+                    yield item # 暂停 丢给引擎 引擎将item丢给pipeline 处理之后继续下一步
+                next = response.css('nav ul.pager li.next a::attr("href")').extract_first() # 拿到分页路径
+                url = response.urljoin(next) # 和原始url拼接成新的url
+                yield scrapy.Request(url, callback=self.parse) # 暂停 丢给引擎  引擎生成新的请求 
+        ~~~
+        </Step>
+        <Step title="在pipelines处理数据">
+        ~~~py
+        # 可以有多个pipeline
+        class WaterTendersPipeline:
+            def open_spider(self, spider):
+                """
+                hook
+                在 spider 开始爬取之前调用一次,整个爬取过程只调用一次
+                适合做初始化工作:打开文件、连接数据库、建立 Redis 连接等
+                """
+                self.f = open("quotes.txt", "a", encoding="utf-8")
+                """ 
+                
+                """
+
+            def close_spider(self, spider):
+                """
+                hook
+                在 spider 爬取结束(正常结束或异常终止)之后调用一次
+                适合做收尾:关闭文件句柄、断开数据库连接、提交事务等
+                """
+                self.f.close()
+
+            def process_item(self, item, spider): 
+                """
+                hook 每个 yield 出来的 item 都会经过这个方法,必须的核心方法
+                """
+                self.f.write(f"by:{item.author}\n")
+                self.f.write(f"tags:{item.tags}\n")
+                self.f.write(f"text:{item.text}\n")
+                self.f.write("-" * 30 + "\n")
+                return item
+
+        ~~~
+        
+        </Step>
+        <Step title="在setting配置pipeline">
+        ~~~py
+            ITEM_PIPELINES = {
+                #数字越小,越先执行
+                "water_tenders.pipelines.ValidatePipeline": 100,   # 先做数据校验/清洗
+                "water_tenders.pipelines.DedupPipeline": 200,       # 再去重
+                "water_tenders.pipelines.SaveToFilePipeline": 300,  # 最后存文件
+                "water_tenders.pipelines.SaveToDBPipeline": 400,    # 或者存数据库
+            }
+        ~~~
+
+        </Step>
+    </Steps>
+</Details>
+
+
+### Middleware
+
+使用中间件之前 需要在`settings.py`启动它
+
+~~~py
+# settings.py
+DOWNLOADER_MIDDLEWARES = {
+    # 数字越小最先启动
+    "water_tenders.middlewares.WaterTendersDownloaderMiddleware": 543,
+    "water_tenders.middlewares.ProxyMiddleware": 544,
+}
+~~~
+~~~py
+# 自定义中间件
+from scrapy.http import HtmlResponse
+class ProxyMiddleware(object):
+    def process_request(self, request, spider):
+        return HtmlResponse(
+        url=request.url,status=200,
+        encoding='utf-8',
+        body='Test Downloader Middleware')
+
+~~~
 
 ### settings.py
 

@@ -146,6 +146,7 @@ list3.isEmpty();  // 报错 NullPointerException 💥
 | `@Transactional` | 开启事务 |
 | `@Configuration` | 管理配置 |
 | `@Bean` | 配置 |
+
 ## 专业名词
 
 - **DTO（数据传输对象）**——用于层与层之间传递数据的载体，类似 Python 中的 Pydantic 模型。
@@ -373,7 +374,9 @@ public interface UserMapper {
 ```
 
 ---
+
 ## 接口错误统一处理
+
 ### 通用异常处理
 ```java
 @Log4j2 // 日志
@@ -403,6 +406,7 @@ public class GlobalExceptionHandler {
     }
 }
 ```
+
 ### 自定义业务异常类
 在业务层使用`throw new BusinessException(code, message);` 会自动抓取到 `@BusinessError` 方法，返回自定义的错误码和错误信息。
 ```java
@@ -775,3 +779,28 @@ public class RedisUtil {
 
 """
 ```
+
+## 雪花id
+
+~~~xml
+<!-- pom.xml -->
+<dependency>
+    <groupId>cn.hutool</groupId>
+    <artifactId>hutool-all</artifactId>
+    <version>5.8.47</version>
+    <scope>compile</scope>
+</dependency>
+~~~
+
+~~~java
+@Configuration
+public class SnowflakeConfig {
+
+    @Bean
+    public Snowflake snowflake() {
+        return IdUtil.getSnowflake(1, 1);
+    }
+}
+
+// snowflake.nextId() 返回id
+~~~

@@ -196,7 +196,7 @@ scrapy.cfg # Scrapy 的配置入口。告诉 Scrapy 默认设置文件在哪里
         class ToscrapeSpider(scrapy.Spider):
             name = "toscrape"
             allowed_domains = ["quotes.toscrape.com"]
-            start_urls = ["https://quotes.toscrape.com/"]          
+            start_urls = ["https://quotes.toscrape.com/"]
 
             def parse(self, response):
                 for quote_item in response.css("div.quote"):
@@ -261,6 +261,66 @@ scrapy.cfg # Scrapy 的配置入口。告诉 Scrapy 默认设置文件在哪里
     </Steps>
 </Details>
 
+
+### 基于逆向JS的spider
+~~~js
+// 从某网站拿到的sign 加密逻辑
+// 忽略一些
+
+const md5 = function (n, r, t) {
+    return r ? t ? d(r, n) : function (n, r) {
+        return h(d(n, r))
+    }(r, n) : t ? l(n) : function (n) {
+        return h(l(n))
+    }(n)
+}
+const getQuery = ()=>{
+    const timestamp = new Date().getTime()
+    const token = md5("tuling" + timestamp + 1)
+    const params = {
+            sign: token,
+            _ts: timestamp,
+        };
+    return new URLSearchParams(params).toString()
+}
+~~~
+
+~~~py
+"""
+使用execjs模块运行JS
+
+uv add execjs
+
+"""
+import scrapy
+import execjs as js
+
+
+class MashangpaSpider(scrapy.Spider):
+    name = "mashangpa"
+    allowed_domains = ["www.mashangpa.com"]
+    start_urls = ["https://www.mashangpa.com/problem-detail/4/"]
+    cookie = "12ypwyjzwzhig6ljc24juoqh2a8diygi"
+    def parse(self, response):
+        with open('1.js', 'r', encoding='utf-8') as f: # 打开JS文件
+            js_code = f.read()
+            ctx = js.compile(js_code)
+            result = ctx.call('getQuery')# 拿到getQuery函数的返回值
+            yield scrapy.Request(
+                method="GET",
+                url=f"https://www.mashangpa.com/api/problem-detail/4/data/?{result}",
+                cookies={
+                    "sessionid":self.cookie,
+                },
+                callback=self.parse_api, # 将请求结果丢给 parse_api
+            )
+    def parse_api(self, response):
+        """
+        response.json() 对应的response
+        ctx.eval(变量) 拿到变量
+        """
+
+~~~
 
 ### Middleware
 

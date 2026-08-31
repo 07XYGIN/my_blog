@@ -18,7 +18,7 @@ export default async function Home() {
         <div className="relative mt-9 flex flex-wrap gap-3">
           <KnowledgeSearch documents={searchDocuments} />
           <Button asChild><a href="https://github.com/07XYGIN" rel="noreferrer" target="_blank"><Code2 size={17} />GitHub</a></Button>
-          <Button asChild variant="outline"><Link href="/snippets"><TerminalSquare size={17} />代码片段</Link></Button>
+          {/* <Button asChild variant="outline"><Link href="/snippets"><TerminalSquare size={17} />代码片段</Link></Button>  */}
           <Button asChild variant="ghost"><Link href="/about"><Layers3 size={17} />关于项目</Link></Button>
           <Button asChild variant="ghost"><a href="#posts-heading"><ArrowDown size={17} />阅读笔记</a></Button>
         </div>

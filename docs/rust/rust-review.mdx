@@ -1,0 +1,115 @@
+---
+title: 'Rust基础(1)'
+description: '从安装编译器到rust基本语法'
+category: 'Rust'
+tags: 'Rust基础'
+date: '2026-08-31'
+readTime: '--'
+author: 'Gin'
+---
+
+install : https://rust-lang.org/zh-CN/tools/install/
+
+## create rust project
+~~~bash
+rustc -V 
+cargo -V # 包管理工具
+
+cargo new rustProject
+~~~
+
+## helloword
+~~~rs
+
+fn main() {
+    println!("Hello, world!");
+}
+
+~~~
+
+## rust基础
+
+### 语句和表达式
+~~~rs
+// 语句 :执行操作 不返回值 已 ";"结尾
+let a:i32 = 1;
+let result = if x > 0 { 100 } else { -100 };
+
+// 表达式: 计算并返回值 末尾没有 ";"
+fn double(x: i32) -> i32 { x * 2 }
+
+~~~
+
+### 变量
+~~~rs
+// rust有且只有一个入口函数,定义的变量必须使用
+fn main(){
+    let a = 0; // 定义变量(不可变)
+    a = 1; // error: cannot assign twice to immutable variable `a`
+
+    let mut b = 0; // mut(可变变量)
+    b = 1;
+}
+~~~
+
+### 数据类型
+
+- i32 (32位有符号整数->正数、负数和零)
+- u32 (32位无符号整数->非负数（零和正数）)
+- f64 (64位浮点数)
+- bool (布尔类型)
+- char (字符)
+
+~~~rs
+let x: i32 = 42;
+let y: f64 = 3.14;
+let is_true: bool = true;
+let letter: char = 'A';
+~~~
+
+### 函数
+~~~rs
+fn add(a: i32, b: i32) -> i32 {
+    a + b
+    // 如果需要提前返回 则使用return 
+    /**
+     * if a < 1 {
+     * return a
+     * }
+     * 
+    */
+}
+~~~
+
+### 循环和判断
+~~~rs
+// rust的结构体为无括号->花括号
+let a = 0;
+//if-else
+if a == 1
+{
+    println!("a:{}",a);
+}
+else
+{
+    println!("else-->a:{}",a);
+}
+//while
+let mut number = 3;
+while number != 0 {
+    println!("{}!", number);
+    number -= 1;
+}
+//for
+for number in 1..4 {
+    println!("{}!", number);
+}
+// loop(无限循环)
+let mut counter = 0;
+loop {
+    counter += 1;
+    if counter == 10 {
+        break; // 使用break退出循环
+    }
+}
+~~~

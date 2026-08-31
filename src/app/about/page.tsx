@@ -1,4 +1,4 @@
-import { ArrowUpRight, Bot, Braces, Code2, Database, GitBranch, Layers3, NotebookTabs, Server, Sparkles, TerminalSquare } from "lucide-react";
+import { ArrowUpRight, Bot, Braces, Code2, Database, GitBranch, Layers3, Mail, NotebookTabs, Server, Sparkles, TerminalSquare } from "lucide-react";
 import { AboutHeroTitle } from "@/components/about-hero-title";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,10 @@ export default async function AboutPage() {
             <div className="mt-4 flex flex-wrap gap-3">
               <Button asChild><a href="https://github.com/07XYGIN" rel="noreferrer" target="_blank"><Code2 size={17} />GitHub</a></Button>
             </div>
+            <p className="mt-4 inline-flex items-center gap-2 text-sm text-[var(--muted)]">
+              <Mail size={16} className="text-[var(--primary)]" />
+              <a className="transition-colors hover:text-[var(--primary)]" href="mailto:xygin0708@163.com">xygin0708@163.com</a>
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-[var(--outline)] bg-[var(--outline)]">
             <Metric icon={<NotebookTabs size={18} />} label="笔记" value={posts.length} />

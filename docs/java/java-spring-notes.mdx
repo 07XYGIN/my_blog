@@ -7,8 +7,6 @@ date: '2026-08-05'
 readTime: '30 分钟'
 author: 'Gin'
 ---
-## Java 基础
-
 ## 数组
 
 ### `isEmpty()`
@@ -26,11 +24,53 @@ list3.isEmpty();  // 报错 NullPointerException 💥
 
 ## Java 定义变量
 
-- `private`——只能在本类内部访问
-- `final`——一旦赋值不可再修改
-- `interface`——只定义"要做什么"(方法签名),具体实现交给别人(比如 MyBatis 根据接口自动生成实现类)
+- `private`——> 只能在本类内部访问
+~~~java
+// books.java
+public class Books {
+    private String bookName;
+    private String author;
+    private String publisher;
+    private String ISBN;
+    public void setBookName(String bookName) {
+        this.bookName = bookName;
+    }
 
----
+    public String getBookName() {
+        return bookName;
+    }
+}
+
+// main.java
+
+Books book = new Books()
+
+book.bookName // 拿不到，需要主动暴漏
+~~~
+
+- `final`——>  一旦赋值不可再修改
+
+~~~Java
+// main.java
+final Integer age = 20;
+age = 30; //报错
+
+
+~~~
+- `interface`—> 只定义"要做什么"(方法签名),具体实现交给别人(比如 MyBatis 根据接口自动生成实现类)
+- `static` -> 不用创建对象就能访问
+~~~java
+// People.java 
+public class People {
+    public static Integer addCount() {
+        return count++;
+    }
+}
+// main.java
+People.addCount(); //不需要将类示例
+~~~
+- `public` -> 任何地方都可以访问
+
 
 ## Java 数据类型
 
@@ -780,7 +820,7 @@ public class RedisUtil {
 """
 ```
 
-## 雪花id
+## 雪花算法
 
 ~~~xml
 <!-- pom.xml -->

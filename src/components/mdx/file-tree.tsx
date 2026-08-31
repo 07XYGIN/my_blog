@@ -18,7 +18,6 @@ type TreeNode = {
 export function FileTree({ items, tree, rootLabel = "project", className }: FileTreeProps) {
   const paths = tree ?? items ?? [];
   const nodes = buildTree(paths);
-
   return (
     <div className={cn("mdx-file-tree my-8 overflow-hidden rounded-xl border border-[var(--outline)] bg-[var(--surface)]", className)}>
       <div className="flex items-center gap-2 border-b border-[var(--outline)] px-4 py-3 text-sm font-medium text-[var(--text)]">

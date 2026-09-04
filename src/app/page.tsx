@@ -1,8 +1,9 @@
-import { ArrowDown, Code2, Layers3, TerminalSquare } from "lucide-react";
+import { ArrowDown, Code2, Layers3 } from "lucide-react";
 import Link from "next/link";
 import { KnowledgeSearch } from "@/components/knowledge-search";
 import { PostExplorer } from "@/components/post-explorer";
 import { Button } from "@/components/ui/button";
+import { HeroScene } from "@/components/webgl/hero-scene";
 import { getPosts, getSearchDocuments } from "@/lib/posts";
 
 export default async function Home() {
@@ -11,7 +12,7 @@ export default async function Home() {
   return (
     <main className="container section-pad">
       <section className="relative overflow-hidden border-b border-[var(--outline)] pb-16 pt-10 md:pb-24 md:pt-20">
-        <div aria-hidden className="hero-orbit" />
+        <HeroScene />
         <h1 className="relative mt-5 max-w-4xl text-[clamp(3.5rem,10vw,7.75rem)] font-semibold leading-[0.88] tracking-[-0.075em]">
           Gin<span className="text-[var(--primary)]">.</span>
         </h1>

@@ -10,6 +10,8 @@ author: 'Gin'
 
 install : https://rust-lang.org/zh-CN/tools/install/
 
+docs: https://rustwiki.org/zh-CN/rust-by-example/hello/print.html
+
 ## create rust project
 ~~~bash
 rustc -V 
@@ -18,11 +20,14 @@ cargo -V # 包管理工具
 cargo new rustProject
 ~~~
 
-## helloword
+## helloword && print
 ~~~rs
 
 fn main() {
-    println!("Hello, world!");
+    println!("Hello, world!"); // println! 会检查使用到的参数数量是否正确。
+    // 用变量替换字符串有多种写法。
+    // 比如可以使用位置参数。
+    println!("{0}, this is {1}. {1}, this is {0}", "Alice", "Bob");
 }
 
 ~~~
@@ -59,7 +64,6 @@ fn main(){
 - f64 (64位浮点数)
 - bool (布尔类型)
 - char (字符)
-
 ~~~rs
 let x: i32 = 42;
 let y: f64 = 3.14;
@@ -67,6 +71,25 @@ let is_true: bool = true;
 let letter: char = 'A';
 ~~~
 
+#### 元组
+~~~rs
+let tuple = (1,false,"1",1.1);
+// 使用:?打印元组
+println!("tuple is {:?}",tuple)
+
+// 使用下标访问元组中的元素
+println!("tuple first element is :",tuple.0)
+
+// 元组可以解包
+let (a,b,c,d) = tuple;
+~~~
+
+#### 数组
+~~~rs
+
+
+
+~~~
 ### 函数
 ~~~rs
 fn add(a: i32, b: i32) -> i32 {

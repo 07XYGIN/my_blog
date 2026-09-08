@@ -5,7 +5,7 @@ import { RouteScene } from "@/components/webgl/route-scene";
 
 
 const events = [
-  { date: "2026-08-30", title: "Rust", text: "新技术栈", type: "learn", icon: <Rocket size={18} /> },
+  // { date: "2026-08-30", title: "Rust", text: "新技术栈", type: "learn", icon: <Rocket size={18} /> },
   { date: "2026-08-10", title: "博客接入 Vercel CI/CD", text: "主分支推送自动执行 pnpm 安装、Lint、Next.js 构建与 Vercel 生产部署。", type: "my_blog", icon: <Rocket size={18} /> },
   { date: "2026-08-10", title: "设计个人博客", text: "基于React + Next 用于总结学习笔记和代码等", type: "my_blog", icon: <Rocket size={18} /> },
   { date: "2026-07-08", title: "create Templates", text: "整理 Spring Boot 与 FastAPI 的基础工程模板，复用统一响应、异常处理和常用基础设施。", type: "templates", icon: <GitBranch size={18} /> },

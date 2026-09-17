@@ -13,6 +13,7 @@ const links = [
   // { href: "/snippets", label: "代码片段" },
   { href: "/projects", label: "项目" },
   { href: "/timeline", label: "时间线" },
+  { href: "/now", label: "近况" },
   { href: "/about", label: "关于" },
 ];
 

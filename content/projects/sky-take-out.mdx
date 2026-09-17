@@ -1,0 +1,24 @@
+---
+order: 4
+status: SHIPPED
+title: 'sky-take-out'
+summary: '包含管理端、用户小程序和后端服务的外卖项目，覆盖从点餐到订单履约的完整业务链路。'
+stack:
+  - React 19
+  - TypeScript
+  - Vite
+  - Vue
+  - uni-app
+  - Spring Boot
+  - MyBatis
+  - MySQL
+  - Redis
+links:
+  source: 'https://github.com/07XYGIN/sky-take-out'
+relatedPosts:
+  - java-spring-notes
+  - mysql
+  - docker
+---
+
+这个项目选择把管理端、小程序和服务端拆成清晰的客户端与服务边界，而不是先做一个只覆盖单端的演示：这样可以同时练习订单、菜品、套餐、统计和地址管理等完整业务流程。代价是多端状态、接口契约和联调问题会被放大，任何一个核心字段变化都可能牵动管理端、小程序和后端。

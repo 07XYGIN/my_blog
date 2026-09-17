@@ -1,0 +1,23 @@
+---
+order: 1
+status: ACTIVE
+title: 'Aura'
+summary: '围绕实时对话、长期记忆、情绪感知和多端体验构建的 AI 陪伴项目。'
+stack:
+  - FastAPI
+  - LangGraph
+  - Next.js
+  - Vue 3
+  - Flutter
+  - PostgreSQL
+  - pgvector
+  - Redis
+links:
+  source: 'https://github.com/07XYGIN/Aura'
+relatedPosts:
+  - langgraph
+  - langchain
+  - postgresql
+---
+
+最初在“沿用历史 Java / NestJS 服务”与“收拢到 FastAPI + LangGraph 主线”之间选择了后者：AI 编排、工具调用和流式响应更适合靠近 Python 生态，也让当前服务边界更容易理解。代价是旧服务无法立即消失，前端又同时覆盖 Vue、Next.js 和 Flutter，认证、协议和联调成本随之上升。

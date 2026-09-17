@@ -1,0 +1,22 @@
+---
+order: 3
+status: ACTIVE
+title: 'Gin Blog'
+summary: '基于 Next.js App Router 和 MDX 的个人技术博客，用来沉淀学习笔记、代码片段和构建记录。'
+stack:
+  - Next.js 16
+  - React 19
+  - TypeScript
+  - Tailwind CSS
+  - MDX
+  - Vercel
+links:
+  source: 'https://github.com/07XYGIN/my_blog'
+  demo: 'https://xygin.vercel.app'
+relatedPosts:
+  - langchain
+  - docker
+  - git-workflow
+---
+
+博客在“接入数据库或 CMS”与“继续把内容放在 Git 管理的 MDX 文件”之间选择了后者：文章、项目和页面内容可以一起审阅、迁移，并且静态构建天然适合 Vercel。代价是 frontmatter、搜索索引、目录和内容校验都需要自己维护；当内容规模继续增长，编辑体验会成为比渲染性能更早出现的约束。

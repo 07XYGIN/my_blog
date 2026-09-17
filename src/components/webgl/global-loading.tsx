@@ -19,6 +19,7 @@ export function GlobalLoading() {
   const exitTimer = useRef<number | undefined>(undefined);
   const removalTimer = useRef<number | undefined>(undefined);
   const timeoutTimer = useRef<number | undefined>(undefined);
+  const lastUrl = useRef("");
 
   const clearTimers = useCallback(() => {
     window.clearTimeout(exitTimer.current);
@@ -69,16 +70,27 @@ export function GlobalLoading() {
       const destination = new URL(anchor.href, window.location.href);
       const current = new URL(window.location.href);
       if (destination.origin !== current.origin || !["http:", "https:"].includes(destination.protocol)) return;
+      if (destination.hash && destination.pathname === current.pathname && destination.search === current.search) return;
       if (destination.pathname === current.pathname && destination.search === current.search) return;
 
       begin();
     }
 
+    function handlePopState() {
+      const previous = lastUrl.current ? new URL(lastUrl.current) : null;
+      const current = new URL(window.location.href);
+      lastUrl.current = current.href;
+      if (previous && current.origin === previous.origin && current.pathname === previous.pathname && current.search === previous.search) return;
+
+      begin();
+    }
+
     document.addEventListener("click", handleNavigation, true);
-    window.addEventListener("popstate", begin);
+    lastUrl.current = window.location.href;
+    window.addEventListener("popstate", handlePopState);
     return () => {
       document.removeEventListener("click", handleNavigation, true);
-      window.removeEventListener("popstate", begin);
+      window.removeEventListener("popstate", handlePopState);
     };
   }, [begin]);
 

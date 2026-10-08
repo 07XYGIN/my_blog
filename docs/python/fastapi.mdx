@@ -7,10 +7,13 @@ date: '2026-08-06'
 readTime: '22 分钟'
 author: 'Gin'
 ---
+
 [FastAPI 官方文档(点击进入)](https://fastapi.tiangolo.com/zh/tutorial/first-steps/)
 
 
-## 依赖
+## 核心基础设施
+
+### 依赖
 
 ```bash
 uv add fastapi[all] "uvicorn[standard]" sqlalchemy aiosqlite
@@ -30,7 +33,7 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 8080 --use-colors --reload
 - OpenAPI：`http://127.0.0.1:8000/openapi.json`
 
 
-## 配置
+### 配置
 
 ```python
 # app/core/config.py
@@ -69,7 +72,7 @@ def get_settings() -> Settings:
 settings = get_settings()
 ```
 
-## 数据库
+### 数据库
 
 ```python
 # app/core/database.py
@@ -115,7 +118,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 ```
 
 
-## 实体类
+### 实体类
 
 ```python
 # app/models/user.py
@@ -146,7 +149,9 @@ class User(Base):
 
 
 
-## 密码和 JWT
+## 认证与安全
+
+### 密码和 JWT
 
 ```python
 # app/core/security.py
@@ -190,7 +195,7 @@ def decode_access_token(token: str) -> dict:
         algorithms=[settings.jwt_algorithm],
     )
 ```
-## 依赖注入
+### 依赖注入
 ```python
 # app/api/deps.py
 from typing import Annotated
@@ -277,7 +282,7 @@ async def get_current_user(
 
 `Depends` 负责创建数据库会话和解析当前用户，路由函数只声明需要什么，不负责手动读取请求头或管理连接。
 
-## 集中异常处理与统一响应格式
+## 工程化
 
 ### 集中异常处理
 ~~~py
@@ -354,7 +359,7 @@ class Result(BaseModel, Generic[T]):
 
 
 ~~~
-##  应用入口
+### 应用入口
 
 ```python
 # app/main.py

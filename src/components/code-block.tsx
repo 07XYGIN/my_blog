@@ -38,13 +38,13 @@ export function CodeFigure({ children, className, ...props }: PrettyCodeFigurePr
 
   return (
     <figure className={cn("code-frame my-8 overflow-hidden rounded-xl border border-[var(--code-border)] bg-[var(--code)]", className)} {...props}>
-      <div className="flex items-center justify-between gap-4 border-b border-[var(--code-border)] bg-[#0d1117] px-4 py-2.5">
-        <span className="meta inline-flex min-w-0 items-center gap-2 truncate text-[12px] text-[#8b949e]">
+      <div className="flex items-center justify-between gap-4 border-b border-[var(--code-border)] bg-[var(--code-header)] px-4 py-2.5">
+        <span className="meta inline-flex min-w-0 items-center gap-2 truncate text-[12px] text-[var(--code-muted)]">
           <FileCode2 className="shrink-0" size={14} />
           <span className="truncate">{label}</span>
         </span>
         <button
-          className="focus-ring inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 font-meta text-[12px] text-[#8b949e] transition hover:bg-white/5 hover:text-[#c0c1ff]"
+          className="focus-ring inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 font-meta text-[12px] text-[var(--code-muted)] transition hover:bg-white/5 hover:text-[var(--code-accent)]"
           onClick={copy}
           type="button"
         >

@@ -1,0 +1,42 @@
+﻿node.exe : $ next build
+所在位置 D:\nodeJS\pnpm.ps1:16 字符: 5
++     & "$basedir/node$exe"  "$basedir/node_modules/pnpm/bin/pnpm.cjs"  ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ($ next build:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+鈻?Next.js 16.3.0 (Turbopack)
+鉁?Running next.config.ts took 36ms
+
+  Creating an optimized production build ...
+鉁?Compiled successfully in 23.1s
+  Running TypeScript ...
+  Finished TypeScript in 7.8s ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/22) ...
+  Generating static pages using 11 workers (5/22) 
+  Generating static pages using 11 workers (10/22) 
+  Generating static pages using 11 workers (16/22) 
+鉁?Generating static pages using 11 workers (22/22) in 9.6s
+  Finalizing page optimization ...
+
+Route (app)
+鈹?鈼?/
+鈹?鈼?/_not-found
+鈹?鈼?/about
+鈹?  /blog/[slug]
+鈹?鈹?鈼?/blog/debugging-notes
+鈹?鈹?鈼?/blog/langchain
+鈹?鈹?鈼?/blog/langgraph
+鈹?鈹?鈼?[+10 more paths]
+鈹?鈼?/now
+鈹?鈼?/now/archive
+鈹?鈼?/projects
+鈹?鈼?/snippets
+鈹?鈼?/timeline
+
+
+鈼? (Static)  prerendered as static content
+鈼? (SSG)     prerendered as static HTML (uses generateStaticParams)
+
+EXIT=0

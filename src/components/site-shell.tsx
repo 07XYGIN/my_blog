@@ -10,6 +10,7 @@ import type { SearchDocument } from "@/lib/posts";
 
 const links = [
   { href: "/", label: "首页" },
+  { href: "/#posts-heading", label: "笔记" },
   // { href: "/snippets", label: "代码片段" },
   { href: "/projects", label: "项目" },
   { href: "/timeline", label: "时间线" },
@@ -28,7 +29,8 @@ export function SiteHeader({ searchDocuments }: { searchDocuments: SearchDocumen
         <Link className="focus-ring text-2xl font-semibold tracking-[-0.06em]" href="/" onClick={() => setOpen(false)}>GIN<span className="text-[var(--primary)]">.</span></Link>
         <nav className="hidden items-center gap-2 md:flex">
           {links.map((link) => {
-            const active = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
+            const isHashLink = link.href.includes("#");
+            const active = !isHashLink && (link.href === "/" ? pathname === "/" : pathname.startsWith(link.href));
             return <Link key={link.href} href={link.href} className={`focus-ring relative rounded-lg px-3 py-2 font-meta text-[13px] transition-colors hover:bg-[var(--surface-container)] hover:text-[var(--primary)] ${active ? "font-bold text-[var(--primary)] after:absolute after:-bottom-1 after:left-1/2 after:h-1 after:w-1 after:-translate-x-1/2 after:rounded-full after:bg-[var(--primary)]" : "text-[var(--muted)]"}`}>{link.label}</Link>;
           })}
         </nav>

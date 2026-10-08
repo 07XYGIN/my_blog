@@ -1,4 +1,4 @@
-export const categories = ["全部", "前端", "Python", "Java", "Agent", "其他"] as const;
+export const categories = ["全部", "前端", "Python", "Java", "Agent", "数据库", "其他", "踩坑"] as const;
 export type PostCategory = Exclude<(typeof categories)[number], "全部">;
 
 export type Post = {

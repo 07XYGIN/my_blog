@@ -11,12 +11,12 @@ export default async function Home() {
 
   return (
     <main className="container section-pad">
-      <section className="relative overflow-hidden border-b border-[var(--outline)] pb-16 pt-10 md:pb-24 md:pt-20">
+      <section className="relative overflow-hidden border-b border-[var(--outline)] pb-10 pt-6 md:pb-14 md:pt-10">
         <HeroScene />
-        <h1 className="relative mt-5 max-w-4xl text-[clamp(3.5rem,10vw,7.75rem)] font-semibold leading-[0.88] tracking-[-0.075em]">
+        <h1 className="relative mt-3 max-w-4xl text-[clamp(3.5rem,10vw,7.75rem)] font-semibold leading-[0.88] tracking-[-0.075em]">
           Gin<span className="text-[var(--primary)]">.</span>
         </h1>
-        <div className="relative mt-9 flex flex-wrap gap-3">
+        <div className="relative mt-5 flex flex-wrap gap-3">
           <KnowledgeSearch documents={searchDocuments} />
           <Button asChild><a href="https://github.com/07XYGIN" rel="noreferrer" target="_blank"><Code2 size={17} />GitHub</a></Button>
           {/* <Button asChild variant="outline"><Link href="/snippets"><TerminalSquare size={17} />代码片段</Link></Button>  */}

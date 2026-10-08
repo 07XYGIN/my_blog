@@ -37,7 +37,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
 
   return (
     <main className="container section-pad">
-      <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,760px)_240px] lg:justify-center">
+      <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,68ch)_240px] lg:justify-center">
         <article className="min-w-0">
           <Link className="focus-ring meta inline-flex items-center gap-2 text-xs text-[var(--muted)] hover:text-[var(--primary)]" href="/"><ArrowLeft size={15} />返回文章</Link>
           <header className="mt-8 border-b border-[var(--outline)] pb-10">

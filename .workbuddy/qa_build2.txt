@@ -1,0 +1,34 @@
+BUILD_EXITCODE=0
+鈻?Next.js 16.3.0 (Turbopack)
+鉁?Running next.config.ts took 28ms
+
+  Creating an optimized production build ...
+鉁?Compiled successfully in 13.3s
+  Running TypeScript ...
+  Finished TypeScript in 2.6s ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/22) ...
+  Generating static pages using 11 workers (5/22) 
+  Generating static pages using 11 workers (10/22) 
+  Generating static pages using 11 workers (16/22) 
+鉁?Generating static pages using 11 workers (22/22) in 6.2s
+  Finalizing page optimization ...
+
+Route (app)
+鈹?鈼?/
+鈹?鈼?/_not-found
+鈹?鈼?/about
+鈹?  /blog/[slug]
+鈹?鈹?鈼?/blog/debugging-notes
+鈹?鈹?鈼?/blog/langchain
+鈹?鈹?鈼?/blog/langgraph
+鈹?鈹?鈼?[+10 more paths]
+鈹?鈼?/now
+鈹?鈼?/now/archive
+鈹?鈼?/projects
+鈹?鈼?/snippets
+鈹?鈼?/timeline
+
+
+鈼? (Static)  prerendered as static content
+鈼? (SSG)     prerendered as static HTML (uses generateStaticParams)

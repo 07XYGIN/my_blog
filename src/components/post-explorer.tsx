@@ -18,7 +18,7 @@ export function PostExplorer({ posts }: { posts: Post[] }) {
       <div className="flex flex-col gap-6 border-b border-[var(--outline)] pb-7 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="eyebrow">Notes / {String(visiblePosts.length).padStart(2, "0")}</p>
-          <h2 id="posts-heading" className="mt-2 text-3xl font-semibold tracking-[-0.03em] md:text-4xl">技术笔记</h2>
+          <h2 id="posts-heading" className="mt-2 scroll-mt-24 text-3xl font-semibold tracking-[-0.03em] md:text-4xl">技术笔记</h2>
         </div>
         <div aria-label="文章分类" className="flex flex-wrap gap-2" role="group">
           {categories.map((category) => (

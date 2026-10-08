@@ -1,0 +1,96 @@
+---
+title: '记一次 Next.js 构建内存溢出（OOM）的排查'
+description: '一次 node 进程内存溢出的真实排查记录：从报错现象、复现路径，到用 NODE_OPTIONS 与依赖优化把构建内存压下来的完整过程。'
+category: '踩坑'
+tags: 'Next.js,OOM,构建,踩坑'
+date: '2026-10-08'
+readTime: '6 分钟'
+author: 'Gin'
+---
+
+有一段时间只要跑 `pnpm build`，构建到静态导出阶段就稳定报错，进程直接被杀。翻了一遍 CI 日志和本地终端，最后发现不是代码问题，而是 Node 默认内存上限被顶穿了。把排查过程记下来，方便以后遇到类似的坑直接对照。
+
+<Callout type="warning" title="先看结论">
+如果构建日志里出现 `FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory`，大概率是 Node 进程堆内存不够，先按下面的办法扩内存或裁剪依赖，不要急着改业务代码。
+</Callout>
+
+## 现象
+
+报错信息非常直接：
+
+```bash
+FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory
+```
+
+关键点在 `JavaScript heap out of memory`，意思是 V8 的堆内存撞到了上限。奇怪的是同样的代码，同事机器上能构建成功，我这边却时不时失败，说明和机器配置、Node 版本、依赖体积都有关系。
+
+## 排查过程
+
+### 1. 确认是不是内存问题
+
+先看日志里有没有 `heap out of memory`，再确认本机 Node 版本和默认堆上限：
+
+```bash
+node -v
+node -e "console.log(require('v8').getHeapStatistics().heap_size_limit / 1024 / 1024 + ' MB')"
+```
+
+默认情况下，V8 的堆上限会根据机器内存自动推算，但 64 位机器通常也不会给到特别大。构建一个大项目时，打包、压缩、生成 sourcemap 都很吃内存。
+
+### 2. 用 NODE_OPTIONS 临时扩内存
+
+最直接的止血办法，是给 Node 进程手动指定更大的堆上限：
+
+```bash
+NODE_OPTIONS=--max-old-space-size=4096 pnpm build
+```
+
+`4096` 表示 4GB，按机器内存量调整即可。Windows 下直接：
+
+```powershell
+$env:NODE_OPTIONS="--max-old-space-size=4096"
+pnpm build
+```
+
+扩完内存后构建能过，说明确实是堆不够，而不是逻辑错误。
+
+### 3. 找到真正吃内存的环节
+
+扩内存只是绕过问题，还得找到根因。用 Next.js 的构建耗时分析看一眼每个阶段：
+
+```bash
+ANALYZE=true pnpm build
+```
+
+再结合 `next build --debug` 的日志，定位到是某个依赖的预编译（optimize）还是静态生成阶段把内存吃满。我这次排查下来，是一个体积很大的图表库被全量打进首页 bundle，静态导出时反复序列化导致峰值内存翻倍。
+
+## 解决办法
+
+最终做了三件事，构建内存从峰值 3.6GB 降到 1.2GB 左右：
+
+```bash
+# 1. 扩大 Node 堆上限，作为兜底
+NODE_OPTIONS=--max-old-space-size=4096
+
+# 2. 图表库改成动态导入，只在需要时加载
+next/dynamic
+```
+
+业务代码里按需加载，而不是顶层静态 import：
+
+```tsx
+import dynamic from "next/dynamic";
+
+const HeavyChart = dynamic(() => import("@/components/heavy-chart"), {
+  ssr: false,
+  loading: () => <p>加载中…</p>,
+});
+```
+
+再配合依赖去重，把重复打进去的包版本对齐，bundle 体积小了一圈，内存自然就下来了。
+
+## 复盘
+
+这类问题的排查顺序一般是：**先止血（扩内存）→ 再定位（构建分析）→ 最后根治（裁剪依赖 / 按需加载）**。不要一看到 OOM 就盲目删代码，也别只靠扩内存糊弄过去，两个都要做：扩内存保证能跑，裁剪依赖保证长期稳。
+
+以后如果再遇到 `heap out of memory`，第一时间看是不是又引入了什么重依赖，其次再考虑 `NODE_OPTIONS`。

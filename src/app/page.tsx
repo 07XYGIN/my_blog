@@ -13,10 +13,14 @@ export default async function Home() {
     <main className="container section-pad">
       <section className="relative overflow-hidden border-b border-[var(--outline)] pb-10 pt-6 md:pb-14 md:pt-10">
         <HeroScene />
+        <p className="eyebrow relative">Notes from building · 技术笔记与工程实践</p>
         <h1 className="relative mt-3 max-w-4xl text-[clamp(3.5rem,10vw,7.75rem)] font-semibold leading-[0.88] tracking-[-0.075em]">
           Gin<span className="text-[var(--primary)]">.</span>
         </h1>
-        <div className="relative mt-5 flex flex-wrap gap-3">
+        <p className="relative mt-5 max-w-2xl text-base leading-8 text-[var(--muted)]">
+          记录 Python、Java、数据库和 AI Agent 的工程实践
+        </p>
+        <div className="relative mt-6 flex flex-wrap gap-3">
           <KnowledgeSearch documents={searchDocuments} />
           <Button asChild><a href="https://github.com/07XYGIN" rel="noreferrer" target="_blank"><Code2 size={17} />GitHub</a></Button>
           {/* <Button asChild variant="outline"><Link href="/snippets"><TerminalSquare size={17} />代码片段</Link></Button>  */}

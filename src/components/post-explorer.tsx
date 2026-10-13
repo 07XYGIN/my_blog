@@ -38,35 +38,42 @@ export function PostExplorer({ posts }: { posts: Post[] }) {
 
       <motion.div layout className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2">
         <AnimatePresence mode="popLayout">
-          {visiblePosts.map((post) => (
-            <motion.article
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              initial={{ opacity: 0, y: 12 }}
-              key={post.slug}
-              layout
-              transition={{ duration: 0.22 }}
-            >
-              <Link className="focus-ring group block h-full rounded-[18px]" href={`/blog/${post.slug}`}>
-                <Card className="flex h-full min-h-72 flex-col justify-between overflow-hidden p-6 transition duration-300 group-hover:-translate-y-1 group-hover:border-[var(--primary)] group-hover:shadow-[0_18px_50px_rgba(36,42,66,.11)] md:p-7">
-                  <CardHeader>
-                    <div className="flex items-center justify-between gap-4">
-                      <Badge variant="outline">{post.category}</Badge>
-                      <ArrowUpRight className="text-[var(--muted)] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[var(--primary)]" size={19} />
-                    </div>
-                    <CardTitle className="mt-5 text-2xl leading-tight">{post.title}</CardTitle>
-                    <CardDescription className="mt-2 line-clamp-3 text-[15px] leading-7">{post.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="mt-7">
-                    <div className="mb-5 flex flex-wrap gap-2">{post.tags.map((tag) => <Badge key={tag}>{tag}</Badge>)}</div>
-                    <div className="meta flex items-center justify-between border-t border-[var(--outline)] pt-4 text-xs text-[var(--muted)]">
-                      <time>{post.date}</time><span>{post.readTime}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            </motion.article>
-          ))}
+          {visiblePosts.map((post, index) => {
+            const featured = index === 0 && active === "全部";
+            return (
+              <motion.article
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                initial={{ opacity: 0, y: 12 }}
+                key={post.slug}
+                layout
+                transition={{ duration: 0.22 }}
+                className={featured ? "md:col-span-2" : undefined}
+              >
+                <Link className="focus-ring group block h-full rounded-[18px]" href={`/blog/${post.slug}`}>
+                  <Card className={`flex h-full flex-col justify-between overflow-hidden p-6 transition duration-300 group-hover:-translate-y-1 group-hover:border-[var(--primary)] group-hover:shadow-[0_18px_50px_rgba(36,42,66,.11)] md:p-7 ${featured ? "min-h-60" : "min-h-72"}`}>
+                    <CardHeader>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{post.category}</Badge>
+                          {featured ? <Badge>最新笔记</Badge> : null}
+                        </div>
+                        <ArrowUpRight className="text-[var(--muted)] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[var(--primary)]" size={19} />
+                      </div>
+                      <CardTitle className={`mt-5 leading-tight ${featured ? "text-3xl md:text-4xl" : "text-2xl"}`}>{post.title}</CardTitle>
+                      <CardDescription className="mt-2 line-clamp-3 text-[15px] leading-7">{post.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="mt-7">
+                      <div className="mb-5 flex flex-wrap gap-2">{post.tags.map((tag) => <Badge key={tag}>{tag}</Badge>)}</div>
+                      <div className="meta flex items-center justify-between border-t border-[var(--outline)] pt-4 text-xs text-[var(--muted)]">
+                        <time>{post.date}</time><span>{post.readTime}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              </motion.article>
+            );
+          })}
         </AnimatePresence>
       </motion.div>
     </section>

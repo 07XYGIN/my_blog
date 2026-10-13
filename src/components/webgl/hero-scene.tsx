@@ -55,7 +55,7 @@ export function HeroScene() {
         <span className="hero-webgl__fallback-ring hero-webgl__fallback-ring--inner" />
         <span className="hero-webgl__fallback-core" />
       </div>
-      <span className="hero-webgl__label">WebGL / Knowledge field</span>
+      <span className="hero-webgl__label">Field notes / building</span>
     </div>
   );
 }

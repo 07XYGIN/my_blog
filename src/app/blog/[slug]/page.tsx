@@ -34,11 +34,12 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
     },
     components: getMdxComponents(headingCounts),
   });
+  const hasToc = post.toc.length > 0;
   return (
     <main className="container section-pad">
-      <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,68ch)_240px] lg:justify-center">
+      <div className={`grid items-start gap-10 lg:justify-center ${hasToc ? "lg:grid-cols-[minmax(0,76ch)_240px]" : "lg:grid-cols-[minmax(0,76ch)]"}`}>
         <article className="min-w-0">
-          <Link className="focus-ring meta inline-flex items-center gap-2 text-xs text-[var(--muted)] hover:text-[var(--primary)]" href="/"><ArrowLeft size={15} />返回文章</Link>
+          <Link className="focus-ring meta inline-flex items-center gap-2 text-xs text-[var(--muted)] hover:text-[var(--primary)]" href="/"><ArrowLeft size={15} />返回首页</Link>
           <header className="mt-8 border-b border-[var(--outline)] pb-10">
             <div className="flex flex-wrap gap-2"><Badge variant="outline">{post.category}</Badge>{post.tags.map((tag) => <Badge key={tag}>{tag}</Badge>)}</div>
             <h1 className="mt-6 text-[clamp(2.5rem,7vw,4.75rem)] font-semibold leading-[1.02] tracking-[-0.055em]">{post.title}</h1>
@@ -48,7 +49,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               <span className="inline-flex items-center gap-2"><Clock3 size={15} />{post.readTime}</span>
             </div>
           </header>
-          <div className="prose-content pt-4 text-[16px] leading-8">{content}</div>
+          <div className="prose-content pt-4 text-[16px] leading-7">{content}</div>
           {(previous || next) && (
             <nav aria-label="相邻文章" className="mt-16 grid gap-4 border-t border-[var(--outline)] pt-8 sm:grid-cols-2">
               {previous ? <PostNav direction="previous" post={previous} /> : <span />}
@@ -56,18 +57,20 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             </nav>
           )}
         </article>
-        <aside className="sticky top-24  lg:block">
-          <Card className="p-5 overflow-y-auto max-h-250" >
-            <p className="eyebrow">文章目录</p>
-            <nav className="mt-4 flex flex-col gap-1">
-              {post.toc.map((item, itemIndex) => (
-                <a className="focus-ring rounded-lg border-l-2 border-transparent py-2 pr-3 text-sm leading-5 text-[var(--muted)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-low)] hover:text-[var(--text)]" href={`#${item.id}`} key={item.id} style={{ paddingLeft: `${Math.max(item.level - 1, 0) * 12 + 12}px` }}>
-                  <span className="meta mr-2 text-[10px] text-[var(--primary)]"></span>{item.title}
-                </a>
-              ))}
-            </nav>
-          </Card>
-        </aside>
+        {hasToc ? (
+          <aside className="sticky top-24 hidden lg:block">
+            <Card className="max-h-[calc(100vh-8rem)] overflow-y-auto p-5">
+              <p className="eyebrow">文章目录</p>
+              <nav className="mt-4 flex flex-col gap-1">
+                {post.toc.map((item) => (
+                  <a className="focus-ring rounded-lg border-l-2 border-transparent py-2 pr-3 text-sm leading-5 text-[var(--muted)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-low)] hover:text-[var(--text)]" href={`#${item.id}`} key={item.id} style={{ paddingLeft: `${Math.max(item.level - 2, 0) * 12 + 12}px` }}>
+                    {item.title}
+                  </a>
+                ))}
+              </nav>
+            </Card>
+          </aside>
+        ) : null}
       </div>
     </main>
   );

@@ -7,7 +7,7 @@ import { getSearchDocuments } from "@/lib/posts";
 
 export const metadata: Metadata = {
   title: "Gin | 技术笔记与项目",
-  description: "_",
+  description: "Gin 的个人技术博客，持续记录 Python、Java、数据库与 Agent 等工程实践，理解系统如何工作，沉淀技术判断。",
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

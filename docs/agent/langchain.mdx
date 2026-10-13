@@ -25,7 +25,7 @@ uv add langchain-huggingface          # 文字向量化模型
 ```
 </Details>
 
-## create_agent
+## Create_agent
 ### LLM
 ~~~py
 from langchain_openai import ChatOpenAI
@@ -65,9 +65,9 @@ result = llm.invoke(messages)
 print(result.content) # 获取AI的回复
 ~~~
 
-### tool
+### Tool
 
-基础LLM仅依赖于训练数据中的参数化知识进行‘用户输入-llm输出’,存在知识滞后和无法操作外部系统的局限性
+LLM仅依赖于训练数据中的参数化知识进行‘用户输入-llm输出’,存在知识滞后和无法操作外部系统的局限性
 
 `Tool Calling`通过向`LLM`提供外部函数的定义(如函数名、参数及用途描述等),使LLM能够在需要时,输出结构化的调用指令。
 
@@ -219,7 +219,7 @@ print(response.content)
 
 ~~~
 </Details>
-#### ReAct
+### ReAct
 
 ReAct是基于 tool 循环的一种具体用法,两者属于包含关系。
 

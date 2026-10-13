@@ -34,7 +34,6 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
     },
     components: getMdxComponents(headingCounts),
   });
-
   return (
     <main className="container section-pad">
       <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,68ch)_240px] lg:justify-center">
@@ -43,7 +42,6 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           <header className="mt-8 border-b border-[var(--outline)] pb-10">
             <div className="flex flex-wrap gap-2"><Badge variant="outline">{post.category}</Badge>{post.tags.map((tag) => <Badge key={tag}>{tag}</Badge>)}</div>
             <h1 className="mt-6 text-[clamp(2.5rem,7vw,4.75rem)] font-semibold leading-[1.02] tracking-[-0.055em]">{post.title}</h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-[var(--muted)]">{post.description}</p>
             <div className="meta mt-8 flex flex-wrap gap-5 text-xs text-[var(--muted)]">
               <span className="inline-flex items-center gap-2 font-semibold text-[var(--text)]">{post.author}</span>
               <time className="inline-flex items-center gap-2"><CalendarDays size={15} />{post.date}</time>
@@ -64,7 +62,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             <nav className="mt-4 flex flex-col gap-1">
               {post.toc.map((item, itemIndex) => (
                 <a className="focus-ring rounded-lg border-l-2 border-transparent py-2 pr-3 text-sm leading-5 text-[var(--muted)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-low)] hover:text-[var(--text)]" href={`#${item.id}`} key={item.id} style={{ paddingLeft: `${Math.max(item.level - 1, 0) * 12 + 12}px` }}>
-                  <span className="meta mr-2 text-[10px] text-[var(--primary)]">{String(itemIndex + 1).padStart(2, "0")}</span>{item.title}
+                  <span className="meta mr-2 text-[10px] text-[var(--primary)]"></span>{item.title}
                 </a>
               ))}
             </nav>

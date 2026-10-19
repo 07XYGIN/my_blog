@@ -14,14 +14,22 @@ function parseFrontmatter(file: string) {
   const match = file.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
   if (!match) throw new Error("MDX 文件缺少 frontmatter");
 
+  const visibilityPattern = /^IS_SHOW\s*(?::|=)\s*(TRUE|FALSE)\s*;?\s*$/i;
+  const bodyVisibilityPattern = /^IS_SHOW\s*(?::|=)\s*(TRUE|FALSE)\s*;?\s*(?:\r?\n|$)/i;
+  const frontmatterVisibility = match[1].split(/\r?\n/).find((line) => visibilityPattern.test(line))?.match(visibilityPattern)?.[1];
+  const trimmedSource = match[2].trim();
+  const bodyVisibility = trimmedSource.match(bodyVisibilityPattern)?.[1];
+  const isShown = (frontmatterVisibility ?? bodyVisibility)?.toUpperCase() !== "FALSE";
+
   const metadata = Object.fromEntries(
-    match[1].split(/\r?\n/).filter(Boolean).map((line) => {
+    match[1].split(/\r?\n/).filter((line) => line && !visibilityPattern.test(line)).map((line) => {
       const separator = line.indexOf(":");
       return [line.slice(0, separator).trim(), line.slice(separator + 1).trim().replace(/^['"]|['"]$/g, "")];
     }),
   );
 
-  return { metadata, source: match[2].trim() };
+  const source = trimmedSource.replace(bodyVisibilityPattern, "").trim();
+  return { isShown, metadata, source };
 }
 
 export function headingId(title: string) {
@@ -130,9 +138,9 @@ export async function getPosts(): Promise<Post[]> {
   const files = await getMdxFiles();
   const posts = await Promise.all(files.map(async (file) => {
     const raw = await readFile(file, "utf8");
-    const { metadata } = parseFrontmatter(raw);
-    return toPost(slugFromFile(file), metadata);
-  }));
+    const { isShown, metadata } = parseFrontmatter(raw);
+    return isShown ? toPost(slugFromFile(file), metadata) : null;
+  })).then((items) => items.filter((post): post is Post => post !== null));
   const slugs = new Set<string>();
   for (const post of posts) {
     if (slugs.has(post.slug)) throw new Error(`MDX 文件名重复，无法生成唯一文章地址：${post.slug}`);
@@ -146,7 +154,8 @@ export async function getPost(slug: string): Promise<PostDocument | null> {
     const file = (await getMdxFiles()).find((candidate) => slugFromFile(candidate) === slug);
     if (!file) return null;
     const raw = await readFile(file, "utf8");
-    const { metadata, source } = parseFrontmatter(raw);
+    const { isShown, metadata, source } = parseFrontmatter(raw);
+    if (!isShown) return null;
     const toc = tocFromSource(source);
     return { ...toPost(slug, metadata), source, toc };
   } catch {
@@ -158,7 +167,8 @@ export async function getSearchDocuments(): Promise<SearchDocument[]> {
   const files = await getMdxFiles();
   const documents = await Promise.all(files.map(async (file) => {
     const raw = await readFile(file, "utf8");
-    const { metadata, source } = parseFrontmatter(raw);
+    const { isShown, metadata, source } = parseFrontmatter(raw);
+    if (!isShown) return null;
     const post = toPost(slugFromFile(file), metadata);
     const text = stripMdxForSearch(source);
     return {
@@ -167,7 +177,7 @@ export async function getSearchDocuments(): Promise<SearchDocument[]> {
       text,
       preview: text.slice(0, 180),
     };
-  }));
+  })).then((items) => items.filter((document): document is SearchDocument => document !== null));
 
   return documents.sort((a, b) => b.date.localeCompare(a.date));
 }

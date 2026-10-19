@@ -4,7 +4,9 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
 export type ProjectStatus = "ACTIVE" | "SHIPPED" | "ARCHIVED";
+export type ProjectInsights = { choice: string; pitfall: string; takeaway: string };
 export type Project = {
+  slug: string;
   order: number;
   status: ProjectStatus;
   title: string;
@@ -12,6 +14,7 @@ export type Project = {
   stack: string[];
   links: { source: string; demo?: string };
   relatedPosts: string[];
+  insights?: ProjectInsights;
   source: string;
 };
 
@@ -41,7 +44,10 @@ function parseProject(file: string, filePath: string): Project {
     throw new Error(`项目 links.source 缺失：${filePath}`);
   }
 
+  const insights = metadata.insights;
+
   return {
+    slug: path.basename(filePath, ".mdx"),
     order: asNumber(metadata.order, "order", filePath),
     status,
     title: asString(metadata.title, "title", filePath),
@@ -49,6 +55,11 @@ function parseProject(file: string, filePath: string): Project {
     stack: asStringArray(metadata.stack, "stack", filePath),
     links: { source: links.source, demo: typeof links.demo === "string" ? links.demo : undefined },
     relatedPosts: asStringArray(metadata.relatedPosts, "relatedPosts", filePath),
+    insights: isRecord(insights) ? {
+      choice: asString(insights.choice, "insights.choice", filePath),
+      pitfall: asString(insights.pitfall, "insights.pitfall", filePath),
+      takeaway: asString(insights.takeaway, "insights.takeaway", filePath),
+    } : undefined,
     source: match[2].trim(),
   };
 }

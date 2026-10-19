@@ -6,6 +6,7 @@ tags: 'MySQL,SQL,数据库'
 date: '2026-07-08'
 readTime: '5 分钟'
 author: 'Gin'
+IS_SHOW: FALSE
 ---
 
 ---
@@ -111,7 +112,7 @@ ALTER TABLE employees DROP FOREIGN KEY fk_employees_department;
 
 ## 6. MySQL 常用函数差异
 
-大部分字符串、数字、时间函数见 `public.md`。MySQL 随机数函数为：
+MySQL 随机数函数为：
 
 ```sql
 SELECT RAND(); -- 返回 0 到 1 之间的随机小数
@@ -122,6 +123,18 @@ SELECT RAND(); -- 返回 0 到 1 之间的随机小数
 ```sql
 SELECT IFNULL(email, 'unknown@example.com') FROM users;
 ```
+
+查看当前时间函数
+
+~~~sql
+select CURDATE(time); -- 传入YYYY-MM-DD HH:mm:ss 返回YYYY-MM-DD
+~~~
+
+求和函数
+~~~sql
+SUM()
+
+~~~
 
 ---
 
@@ -155,3 +168,6 @@ SELECT IFNULL(email, 'unknown@example.com') FROM users;
 - `DATE`：日期，格式为 `YYYY-MM-DD`。
 - `TIME`：时间，格式为 `HH:MM:SS`。
 - `YEAR`：年份，建议使用 4 位年份。
+
+## 8、运算符
+

@@ -20,7 +20,7 @@ export function PostExplorer({ posts }: { posts: Post[] }) {
           <p className="eyebrow">Notes / {String(visiblePosts.length).padStart(2, "0")}</p>
           <h2 id="posts-heading" className="mt-2 scroll-mt-24 text-3xl font-semibold tracking-[-0.03em] md:text-4xl">技术笔记</h2>
         </div>
-        <div aria-label="文章分类" className="flex flex-wrap gap-2" role="group">
+        {posts.length > 0 ? <div aria-label="文章分类" className="flex flex-wrap gap-2" role="group">
           {categories.map((category) => (
             <Button
               aria-pressed={active === category}
@@ -33,10 +33,16 @@ export function PostExplorer({ posts }: { posts: Post[] }) {
               {category}
             </Button>
           ))}
-        </div>
+        </div> : null}
       </div>
 
-      <motion.div layout className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2">
+      {visiblePosts.length === 0 ? (
+        <div className="mt-8 border-y border-dashed border-[var(--outline)] py-14">
+          <p className="eyebrow">Preparing / 00</p>
+          <p className="mt-3 text-xl font-semibold">笔记整理中</p>
+          <p className="mt-2 max-w-xl text-sm leading-7 text-[var(--muted)]">正在重新梳理内容结构，整理完成后会从这里重新发布。</p>
+        </div>
+      ) : <motion.div layout className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2">
         <AnimatePresence mode="popLayout">
           {visiblePosts.map((post, index) => {
             const featured = index === 0 && active === "全部";
@@ -75,7 +81,7 @@ export function PostExplorer({ posts }: { posts: Post[] }) {
             );
           })}
         </AnimatePresence>
-      </motion.div>
+      </motion.div>}
     </section>
   );
 }

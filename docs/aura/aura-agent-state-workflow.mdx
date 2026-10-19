@@ -1,0 +1,164 @@
+---
+title: '在 Aura 中学习 AI Agent（1）：状态与工作流'
+description: '从 AI 陪伴场景出发，理解 LangGraph 如何用状态、节点和条件路由组织一次可追踪的 Agent 对话。'
+category: 'Agent'
+tags: 'Aura,AI Agent,LangGraph,状态机'
+date: '2026-10-19'
+readTime: '8 分钟'
+author: 'Gin'
+---
+
+做普通聊天功能时，一次请求通常只有一条直线：接收消息、调用模型、返回答案。开始做 Aura 之后，流程里逐渐出现了更多判断：这句话是否需要调用工具？是否应该读取长期记忆？工具执行失败后要继续回答，还是先重试？
+
+当这些判断全部塞进一个函数，代码很快就会变成层层嵌套的 `if`。LangGraph 提供了另一种思路：把 Agent 看成一个围绕共享状态运行的工作流。
+
+<Callout type="note" title="这篇文章的边界">
+本文使用一个缩小后的示例解释状态图，而不是完整复刻 Aura 的生产代码。重点是理解组织方式，示例中的工具节点只模拟查询结果。
+</Callout>
+
+## 从一次对话开始
+
+先把一次 Agent 对话拆成三个阶段：
+
+<Steps>
+  <Step title="分析请求">读取用户消息，判断是否需要外部工具。</Step>
+  <Step title="执行动作">需要工具时获取信息；不需要时跳过这一步。</Step>
+  <Step title="组织回答">结合消息和工具结果，生成最终回复。</Step>
+</Steps>
+
+它对应的流程并不是固定直线，而是包含一次条件分支：
+
+```mermaid
+flowchart LR
+  START([开始]) --> ANALYZE[分析请求]
+  ANALYZE -->|需要工具| TOOL[调用工具]
+  ANALYZE -->|直接回答| REPLY[组织回答]
+  TOOL --> REPLY
+  REPLY --> END([结束])
+```
+
+这里的关键变化是：我们不再追踪“代码执行到了哪一行”，而是关心“当前处于哪个节点，状态中已经有什么”。
+
+## 状态是工作流的共同语言
+
+状态负责在节点之间传递数据。最小示例只保留三个字段：
+
+```python title="state.py" showLineNumbers
+from typing import Annotated
+from typing_extensions import TypedDict
+from langchain_core.messages import AnyMessage
+from langgraph.graph.message import add_messages
+
+
+class AgentState(TypedDict):
+    messages: Annotated[list[AnyMessage], add_messages]
+    needs_tool: bool
+    tool_result: str
+```
+
+`messages` 使用 `add_messages` 作为 reducer。节点返回新消息时，LangGraph 会把它追加到原消息列表，而不是覆盖整个字段。
+
+`needs_tool` 是本轮路由需要的临时判断，`tool_result` 则保存工具节点产生的结果。真实项目还可能加入用户标识、会话摘要、情绪状态或错误信息，但字段越多并不代表设计越好。
+
+<Callout type="tip" title="状态设计原则">
+只把后续节点确实需要的数据放进状态。数据库连接、客户端实例等运行依赖更适合通过依赖注入或运行配置传递，而不是塞进可持久化状态。
+</Callout>
+
+## 节点只完成一件事
+
+每个节点接收当前状态，并返回需要更新的部分：
+
+```python title="nodes.py" showLineNumbers
+from langchain_core.messages import AIMessage
+
+
+def analyze_request(state: AgentState):
+    question = state["messages"][-1].content
+    keywords = ("天气", "搜索", "查询")
+    return {"needs_tool": any(word in question for word in keywords)}
+
+
+def call_tool(state: AgentState):
+    question = state["messages"][-1].content
+    return {"tool_result": f"模拟查询结果：{question}"}
+
+
+def reply(state: AgentState):
+    if state.get("tool_result"):
+        content = f"我参考了工具结果：{state['tool_result']}"
+    else:
+        content = "这个问题不需要调用工具，我可以直接回答。"
+
+    return {"messages": [AIMessage(content=content)]}
+```
+
+这个例子没有真正调用大模型，但节点的输入输出形式已经与完整 Agent 一致。以后可以替换节点内部实现，而不用推翻整个工作流。
+
+## 用条件边决定下一步
+
+路由函数不处理业务，只根据状态返回下一节点的名字：
+
+```python title="graph.py" showLineNumbers
+from typing import Literal
+from langgraph.graph import END, START, StateGraph
+
+
+def route_after_analysis(
+    state: AgentState,
+) -> Literal["tool", "reply"]:
+    return "tool" if state["needs_tool"] else "reply"
+
+
+builder = StateGraph(AgentState)
+builder.add_node("analyze", analyze_request)
+builder.add_node("tool", call_tool)
+builder.add_node("reply", reply)
+
+builder.add_edge(START, "analyze")
+builder.add_conditional_edges(
+    "analyze",
+    route_after_analysis,
+    {"tool": "tool", "reply": "reply"},
+)
+builder.add_edge("tool", "reply")
+builder.add_edge("reply", END)
+
+agent = builder.compile()
+```
+
+运行时只需要提供初始状态：
+
+```python title="main.py" showLineNumbers
+from langchain_core.messages import HumanMessage
+
+
+result = agent.invoke({
+    "messages": [HumanMessage(content="帮我查询上海天气")],
+    "needs_tool": False,
+    "tool_result": "",
+})
+
+print(result["messages"][-1].content)
+```
+
+如果把问题换成“解释一下什么是状态机”，路由会直接进入 `reply`；包含“查询”时，则会先经过 `tool`。同一张图能够描述两条执行路径。
+
+## 回到 Aura，我学到了什么
+
+### 1. 工作流比提示词更容易定位问题
+
+提示词只能告诉模型应该做什么，状态图还能说明程序实际走了哪条路径。回答异常时，可以先确认是路由判断错误、工具结果错误，还是最终回复节点没有正确使用上下文。
+
+### 2. 节点边界决定后续扩展成本
+
+如果“读取记忆、调用工具、生成回复”全在一个节点里，后续很难单独重试或观测。拆成明确节点后，可以分别记录耗时、错误和输入输出，也更容易为某一步增加降级策略。
+
+### 3. 状态需要克制
+
+最开始很容易把所有中间变量都放进状态。这样虽然方便，却会让持久化数据变大，也让节点之间产生隐式依赖。状态应该描述工作流需要共享的事实，而不是充当全局变量容器。
+
+## 下一步
+
+现在的示例只完成了单轮流程。真正的陪伴型 Agent 还需要区分短期对话与长期记忆，并决定何时写入、何时检索。
+
+下一篇将继续沿着 Aura 的场景，拆解 Agent 的记忆层：消息历史、会话摘要和向量检索分别解决什么问题。

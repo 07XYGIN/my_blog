@@ -6,6 +6,7 @@ tags: 'SQL,数据库,事务'
 date: '2026-07-14'
 readTime: '9 分钟'
 author: 'Gin'
+IS_SHOW: FALSE
 ---
 
 ---
@@ -299,7 +300,7 @@ SELECT
     FLOOR(1.8),                      -- 向下取整
     MOD(10, 3),                      -- 取模
     ROUND(1.2345, 2),                -- 四舍五入并保留 2 位小数
-    CURRENT_TIMESTAMP;               -- 当前时间
+    CURRENT_TIMESTAMP;               -- 当前时间 YYYY-MM-DD HH:mm:ss
 ```
 
 随机数函数存在差异：MySQL 使用 `RAND()`，PostgreSQL 使用 `RANDOM()`。

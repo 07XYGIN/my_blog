@@ -17,9 +17,9 @@ export default async function Home() {
         <h1 className="relative mt-3 max-w-4xl text-[clamp(3.5rem,10vw,7.75rem)] font-semibold leading-[0.88] tracking-[-0.075em]">
           Gin<span className="text-[var(--primary)]">.</span>
         </h1>
-        <p className="relative mt-5 max-w-2xl text-base leading-8 text-[var(--muted)]">
+        {/* <p className="relative mt-5 max-w-2xl text-base leading-8 text-[var(--muted)]">
           记录 Python、Java、数据库和 AI Agent 的工程实践
-        </p>
+        </p> */}
         <div className="relative mt-6 flex flex-wrap gap-3">
           <KnowledgeSearch documents={searchDocuments} />
           <Button asChild><a href="https://github.com/07XYGIN" rel="noreferrer" target="_blank"><Code2 size={17} />GitHub</a></Button>

@@ -1,11 +1,9 @@
 import * as React from "react";
 import { AlertCircle, CheckCircle2, Info, Lightbulb, TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { AreaChartBlock, BarChartBlock, ChartBlock, LineChartBlock } from "@/components/mdx/chart-block";
 import { FileTree } from "@/components/mdx/file-tree";
 import { MermaidDiagram } from "@/components/mdx/mermaid-diagram";
 import { CodeFigure } from "@/components/code-block";
@@ -44,16 +42,17 @@ export function getMdxComponents(headingCounts: Map<string, number>) {
     TabsTrigger,
     TabsContent,
     MermaidDiagram,
-    ChartBlock,
-    BarChartBlock,
-    LineChartBlock,
-    AreaChartBlock,
     FileTree,
     Steps,
     Step,
     Details,
-    Badge,
     Card,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+    CardAction,
+    CardContent,
+    CardFooter,
     h1: createHeading("h1", headingCounts),
     h2: createHeading("h2", headingCounts),
     h3: createHeading("h3", headingCounts),
@@ -71,16 +70,10 @@ export function Callout({ type = "note", title, children }: { type?: CalloutKind
   const meta = calloutMeta[type] ?? calloutMeta.note;
   const Icon = meta.icon;
   return (
-    <Alert className={cn("mdx-callout my-8 gap-0 overflow-hidden", meta.className)}>
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-current/15 bg-white/40">
-          <Icon size={16} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <AlertTitle>{title ?? meta.title}</AlertTitle>
-          <AlertDescription>{children}</AlertDescription>
-        </div>
-      </div>
+    <Alert className={cn("mdx-callout my-8", meta.className)} role="note">
+      <Icon />
+      <AlertTitle className="line-clamp-none tracking-normal">{title ?? meta.title}</AlertTitle>
+      <AlertDescription className="min-w-0 text-inherit">{children}</AlertDescription>
     </Alert>
   );
 }

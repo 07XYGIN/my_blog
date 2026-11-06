@@ -1,4 +1,37 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--text);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--surface-container);
+  --color-secondary-foreground: var(--text);
+  --color-muted: var(--surface-low);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--surface-low);
+  --color-accent-foreground: var(--text);
+  --color-destructive: var(--destructive);
+  --color-border: var(--outline);
+  --color-input: var(--outline);
+  --color-ring: var(--primary);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+}
 
 :root {
   --bg: #f7f7f3;
@@ -9,6 +42,9 @@
   --muted: #65685e;
   --outline: #d9dbd1;
   --primary: #4d5d30;
+  --primary-foreground: #ffffff;
+  --destructive: #b42332;
+  --radius: 0.5rem;
   --primary-soft: #e3e9d7;
   --teal: #376d66;
   --teal-soft: #e1efeb;
@@ -32,6 +68,8 @@ html.dark {
   --muted: #a3a89b;
   --outline: #343a30;
   --primary: #b5ca87;
+  --primary-foreground: #171915;
+  --destructive: #f28b95;
   --primary-soft: #303c24;
   --teal: #8acbc1;
   --teal-soft: #203a36;
@@ -56,13 +94,6 @@ button { font: inherit; }
 .font-meta, .meta, .eyebrow { font-family: "Cascadia Code", "SFMono-Regular", Consolas, ui-monospace, monospace; }
 .container { width: min(1120px, calc(100% - 48px)); margin-inline: auto; }
 .surface { background: var(--surface); }
-.card {
-  background: var(--surface);
-  border: 1px solid var(--outline);
-  border-radius: 18px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.06);
-}
-html.dark .card { box-shadow: none; }
 .section-pad { padding-block: 64px; }
 .muted { color: var(--muted); }
 .tag {
@@ -571,23 +602,24 @@ html.dark .card { box-shadow: none; }
 }
 
 .prose-content .mdx-callout p,
-.prose-content .mdx-chart p,
 .prose-content .mdx-step__body p,
-.prose-content .mdx-tabs-content p {
+.prose-content [data-slot="tabs-content"] p {
   margin: 0;
 }
 .prose-content .mdx-callout p + p,
 .prose-content .mdx-step__body p + p,
-.prose-content .mdx-tabs-content p + p {
+.prose-content [data-slot="tabs-content"] p + p {
   margin-top: 12px;
 }
 .prose-content .mdx-callout ul,
 .prose-content .mdx-callout ol,
-.prose-content .mdx-tabs-content ul,
-.prose-content .mdx-tabs-content ol {
+.prose-content [data-slot="tabs-content"] ul,
+.prose-content [data-slot="tabs-content"] ol {
   margin: 12px 0 0;
   color: inherit;
 }
+.prose-content [data-slot="card"] { margin-block: 32px; }
+.prose-content [data-slot="card"] p:last-child { margin-bottom: 0; }
 html.dark .prose-content .mdx-callout-danger {
   border-color: #e06c75;
   background: #341f22;
@@ -677,15 +709,6 @@ html.dark .prose-content .mdx-callout-danger {
   padding-left: 0;
 }
 .prose-content .mdx-file-tree li { margin: 0; }
-
-.prose-content .mdx-chart .recharts-text {
-  fill: var(--muted);
-  font-size: 12px;
-}
-.prose-content .mdx-chart .recharts-cartesian-axis-line,
-.prose-content .mdx-chart .recharts-cartesian-axis-tick-line {
-  stroke: var(--outline);
-}
 
 .prose-content .mdx-mermaid__button {
   align-items: center;

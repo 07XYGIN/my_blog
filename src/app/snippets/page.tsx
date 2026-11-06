@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Braces, CalendarDays, ChevronDown, Code2, Hash } from "lucide-react";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import { getMdxComponents } from "@/components/mdx/mdx-blocks";
-import { Badge } from "@/components/ui/badge";
 import { mdxOptions } from "@/lib/mdx-options";
 import { getCodeSnippets } from "@/lib/snippets";
 
@@ -53,7 +52,7 @@ export default async function SnippetsPage() {
                     <span className="flex flex-wrap items-center gap-2">
                       <Code2 className="text-[var(--primary)]" size={18} />
                       <span className="text-lg font-semibold text-[var(--text)]">{snippet.title}</span>
-                      <Badge variant="outline">{snippet.language.toUpperCase()}</Badge>
+                      <span className="tag">{snippet.language.toUpperCase()}</span>
                     </span>
                     {snippet.description ? <span className="mt-2 block text-sm leading-6 text-[var(--muted)]">{snippet.description}</span> : null}
                     <span className="meta mt-3 flex flex-wrap gap-4 text-[10px] text-[var(--muted)]">

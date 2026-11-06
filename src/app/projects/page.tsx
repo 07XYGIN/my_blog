@@ -3,7 +3,6 @@ import { ArrowDownRight, ArrowUpRight, BookOpen, CircleAlert, GitBranch, Lightbu
 import Link from "next/link";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import { getMdxComponents } from "@/components/mdx/mdx-blocks";
-import { Badge } from "@/components/ui/badge";
 import { mdxOptions } from "@/lib/mdx-options";
 import { getPosts } from "@/lib/posts";
 import { getProjects, type Project } from "@/lib/projects";
@@ -63,7 +62,7 @@ async function ProjectSection({ project, postsBySlug }: { project: Project; post
       <div className="grid gap-8 md:grid-cols-[180px_minmax(0,1fr)] md:gap-12">
         <div>
           <span className="meta text-4xl font-semibold text-[var(--outline)]">{String(project.order).padStart(2, "0")}</span>
-          <div className="mt-4"><Badge variant={statusVariant}>{project.status}</Badge></div>
+          <div className="mt-4"><span className={`tag ${statusVariant === "teal" ? "teal" : ""}`}>{project.status}</span></div>
         </div>
 
         <div className="min-w-0">
@@ -75,7 +74,7 @@ async function ProjectSection({ project, postsBySlug }: { project: Project; post
             <a aria-label={`查看 ${project.title} 源码`} className="focus-ring inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--outline)] text-[var(--muted)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]" href={project.links.source} rel="noreferrer" target="_blank"><ArrowUpRight size={20} /></a>
           </div>
 
-          <div className="mt-7 flex flex-wrap gap-2">{project.stack.map((item) => <Badge key={item} variant="outline">{item}</Badge>)}</div>
+          <div className="mt-7 flex flex-wrap gap-2">{project.stack.map((item) => <span className="tag" key={item}>{item}</span>)}</div>
 
           {project.insights ? (
             <div className="mt-10 grid border-y border-[var(--outline)] md:grid-cols-3 md:divide-x md:divide-[var(--outline)]">

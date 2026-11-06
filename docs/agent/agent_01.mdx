@@ -1,0 +1,433 @@
+---
+title: 'Agent_01'
+description: '对话、记忆 与ToolCalling'
+category: 'Agent'
+tags: 'LLM,Memory,ToolCalling'
+date: '2026-11-04'
+readTime: '_'
+author: 'Gin'
+IS_SHOW: TRUE
+---
+
+<Callout title="需要内容">
+- 库: `openai` 
+
+- 其他:llm api key
+</Callout>
+
+## Basic LLM
+```py
+def agent_main_v0(key,name,baseUrl,system_prompt):
+    """
+    原理 单次对话,维护一个history list(后续所有需求都在维护这个list)
+    """
+    client = OpenAI(
+      api_key=key, 
+      base_url=baseUrl)
+    history = [{"role": "system", "content": system_prompt}]
+    while True:
+        history.append({"role": "user", "content": input("你：")})
+        reply = client.chat.completions.create(model=name, messages=history)
+        print(type(reply)) # Class ChatCompletion
+        """
+        ChatCompletion 类
+        choices[0].message.reasoning_content 展示深度思考内容(若有改属性)
+        usage.prompt_tokens_details.cached_tokens 命中缓存
+        usage.completion_tokens 输出token
+        usage.prompt_tokens 输入token
+        usage.total_tokens 总token
+        """
+        text = reply.choices[0].message.content
+        history.append({"role": "assistant", "content": text})
+        print("助手：", text)
+
+```
+### LLM Streaming Output
+~~~py  showLineNumbers {11}
+from openai import OpenAI 
+
+def agent_main_v1(key,name,baseUrl,system_prompt):
+    """
+    在 completions.create 使用stream 开启流式传输
+    """
+    client = OpenAI(api_key=key, base_url=baseUrl)
+    history = [{"role": "system", "content": system_prompt}]
+    while True:
+        history.append({"role": "user", "content": input("你：")})
+        reply = client.chat.completions.create(model=name, messages=history,stream=True)
+        for chunk in reply:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            piece = delta.content
+            if piece:
+                print(piece,end="\n",flush=True)
+~~~
+## Memory
+~~~py
+def save_history(history:list,file:str):
+    with open(file,'w',encoding="utf-8") as outfile:
+        json.dump(history, outfile, ensure_ascii=False)
+        
+
+def agent_main_v2(key,name,baseUrl,system_prompt):
+  """
+  每轮对话后将 history 以 JSON 格式持久化到本地文件
+  """
+    client = OpenAI(api_key=key, base_url=baseUrl)
+    if not os.path.exists("history.json"):
+        save_history([], "history.json")
+    
+    with open('history.json', 'r', encoding="utf-8") as f:
+        history:list = json.load(f)
+    
+    if not history:
+        history = [{"role": "system", "content": system_prompt}]
+    
+    while True:
+        history.append({"role": "user", "content": input("你：")})
+        reply = client.chat.completions.create(model=name, messages=history)
+        text = reply.choices[0].message.content
+        history.append({"role": "assistant", "content": text})
+        save_history(history,"history.json")
+        print("助手：", text)
+~~~
+### Enduring Memory
+~~~py
+def save_history(history:list,file:str):
+    with open(file,'w',encoding="utf-8") as outfile:
+        json.dump(history, outfile, ensure_ascii=False)
+
+def get_memory_list():
+  if not os.path.exists("memory.json"):
+    save_history([], "memory.json")
+    memory_text:str = ""
+    with open("memory.json","r",encoding="utf-8") as f:
+        memory_text = ",".join(json.load(f))
+    return memory_text
+
+def agent_main(key,name,baseUrl,system_prompt):
+  """
+  手动维护memory.json,并将该文件放进system prompt里
+  """
+    memory = get_memory_list()
+    client = OpenAI(api_key=key, base_url=baseUrl)
+    if not os.path.exists("history.json"):
+        save_history([], "history.json")
+    with open('history.json', 'r', encoding="utf-8") as f:
+        history:list = json.load(f)
+        if not history:
+            history = [{"role": "system", "content": f"{system_prompt}。关于我们的记忆: {memory}"}]
+    while True:
+        history.append({"role": "user", "content": input("你：")})
+        reply = client.chat.completions.create(model=name, messages=history)
+        text = reply.choices[0].message.content
+        history.append({"role": "assistant", "content": text})
+        save_history(history,"history.json")
+        print("助手：", text)
+~~~
+## Tool Calling
+Tool Calling 让 LLM 能调用外部工具完成具体任务，例如读写文件、查询天气、调用 API。
+
+<Callout type='warning' title="注意">
+模型本身不执行这些操作，而是输出结构化的调用请求，由外部程序执行后把结果返回给模型。
+</Callout>
+
+### 使用 Tool Calling
+
+<MermaidDiagram title="流程" chart="graph TD
+    A[开始] --> B[设计一些 tool（本质是 Python 函数）]
+    B --> C[设计对应的 tool schemas]
+    C --> D[用字典维护这些 tool]
+    D --> E[模型返回 tool_calls]
+    E --> F[执行工具，结果以 tool 消息回传]
+    F --> G{模型还要继续调用工具?}
+    G -- 是 --> E
+    G -- 否 --> Z[结束]" />
+
+<Steps>
+  <Step title="设计一些 tool（本质是 Python 函数）">
+    每个工具就是一个普通的 Python 函数，函数名、参数、返回值要清晰。
+    例如：
+    - `read_file(path)`：读取文件内容
+    - `get_weather(city)`：查询城市天气
+
+    工具本身只负责"做事"，不负责判断什么时候该调用——那是模型的事。
+    下面以 `write_file` 为例（`_safe_path` 是自定义的路径校验函数，`import os` 省略）。
+
+    <Details title="示例">
+    ~~~py
+def write_file(path: str, content: str, mode: str = "overwrite",
+            encoding: str = "utf-8", create_dirs: bool = True) -> str:
+    """写入文本文件，支持覆盖/追加。"""
+    full = _safe_path(path)
+    if mode not in ("overwrite", "append"):
+        return f"错误：mode 只能是 overwrite 或 append，收到 {mode}"
+
+    parent = os.path.dirname(full)
+    if parent and not os.path.exists(parent):
+        if create_dirs:
+            os.makedirs(parent, exist_ok=True)
+        else:
+            return f"错误：父目录不存在 -> {parent}"
+
+    try:
+        with open(full, "a" if mode == "append" else "w", encoding=encoding) as f:
+            f.write(content)
+        size = os.path.getsize(full)
+        action = "追加" if mode == "append" else "写入"
+        return f"成功{action} {len(content)} 个字符到 {path}（当前文件 {size} 字节）"
+    except Exception as e:
+        return f"错误：写入失败 -> {e}"
+    ~~~
+    </Details>
+  </Step>
+
+  <Step title="设计对应的 tool schemas">
+    为每个函数写一份 JSON Schema 描述，告诉模型这个工具叫什么、干什么、需要哪些参数。
+    `description` 写清楚，模型靠它决定要不要调用、传什么参数。
+
+    <Details title="示例：write_file 的 schema">
+    ~~~py
+tool_schemas = [{
+    "type": "function",
+    "function": {
+        "name": "write_file",
+        "description": "将文本内容写入指定文件。mode=overwrite 覆盖整个文件，mode=append 追加到文件末尾。目录不存在时自动创建。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "要写入的文件路径，例如 data/notes.txt"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "要写入的文本内容"
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["overwrite", "append"],
+                    "description": "写入模式：overwrite 覆盖（默认），append 追加",
+                    "default": "overwrite"
+                },
+                "encoding": {
+                    "type": "string",
+                    "description": "文件编码，默认 utf-8",
+                    "default": "utf-8"
+                },
+                "create_dirs": {
+                    "type": "boolean",
+                    "description": "父目录不存在时是否自动创建，默认 true",
+                    "default": True
+                }
+            },
+            "required": ["path", "content"]
+        }
+    }
+}]
+    ~~~
+    </Details>
+  </Step>
+
+  <Step title="用字典维护这些 tools">
+    把"工具名 → 实际函数"映射成字典，方便模型返回 tool_calls 后按名字找到对应函数执行：
+
+    ~~~py title="tool_main.py"
+tools = {
+    "write_file": write_file,
+}
+~~~
+
+    调用模型时，把 schemas 列表作为 `tools` 参数传入（假设 `name`、`history` 已定义）：
+
+    ~~~py title="main.py" showLineNumbers {4}
+reply = client.chat.completions.create(
+    model=name,
+    messages=history,
+    tools=tool_schemas,
+)
+~~~
+  </Step>
+
+  <Step title="模型返回 tool_calls">
+    调用模型后检查 `reply.choices[0].message`：如果模型判断需要调用工具，
+    它的回复里会包含 `tool_calls`（每个 call 带工具名和 JSON 字符串参数），而不是直接给出自然语言答案。
+
+    此时把这条 assistant 消息（含 `tool_calls`）原样追加进 history，再进入下一步执行。
+  </Step>
+
+  <Step title="执行工具，结果以 tool 消息回传">
+    遍历 `tool_calls`，按 `name` 从 `tools` 取出函数，用解析后的参数执行，得到结果。
+    然后把每个结果包装成 `{"role": "tool", "tool_call_id": ..., "content": 结果}` 追加进 history，
+    再带着完整 history 调一次模型。
+
+    <Callout type='info' title="注意循环">
+    模型可能连续多次调用工具：如果这次回复里又有 `tool_calls`，就**重复第 4、5 步**，
+    直到模型返回普通文本回复为止。
+    </Callout>
+
+    <Details title="示例：agent 内的工具调用循环">
+
+~~~py
+while True:
+    # —— agent 内循环：模型可能连续多次调工具 ——
+    reply = client.chat.completions.create(
+        model=name, messages=history, tools=tool_schemas
+    )
+    message = reply.choices[0].message
+
+    # 1) 先把 assistant 消息（含 tool_calls）原样入历史
+    history.append(message.model_dump(exclude_none=True))
+
+    # 2) 没有工具调用 → 本轮对话结束，跳出内循环
+    if not message.tool_calls:
+        text = message.content or ""
+        print("助手：\n", text)
+        break
+
+    # 3) 执行所有工具调用，结果回传
+    for call in message.tool_calls:
+        args = json.loads(call.function.arguments or "{}")
+        print(f"[tool] {call.function.name}({args})")
+        try:
+            result = tools[call.function.name](**args)  # 执行对应的 tool
+        except Exception as e:
+            result = f"工具执行出错: {e}"
+        history.append({
+            "role": "tool",
+            "tool_call_id": call.id,
+            "content": str(result),
+        })
+~~~
+    </Details>
+  </Step>
+
+  <Step title="结束">
+    模型返回不含 `tool_calls` 的普通回复，即为最终答案。
+    第 5 步已把这条最终 assistant 回复追加进 history，此处只需保存到磁盘（如 `save_history(history, "history.json")`），本轮结束。
+  </Step>
+</Steps>
+
+
+### 用 ReAct 组织多步调用
+
+Tool Calling 解决"单次怎么调"，ReAct 解决"多步怎么组织"。
+ReAct = Reasoning + Acting：模型在每步先推理（content），再决定行动（tool_calls），
+外部执行后把结果（tool 消息）回灌，驱动下一步推理，直到模型不再要求调工具。
+
+<Callout type="warning" title="注意">
+ReAct 不是另一套 API，它建立在上一节的 Tool Calling 之上。上一节写的 `while` 循环已经是 ReAct 的骨架，
+这一节只是补上步数上限、并把"推理-行动-观察"的对应关系说清楚。
+</Callout>
+
+#### ReAct 的循环结构
+
+<MermaidDiagram title="ReAct 循环" chart="graph TD
+    A[用户输入] --> B[模型推理 content]
+    B --> C{需要调工具?}
+    C -- 是 --> D[返回 tool_calls 并执行]
+    D --> E[结果以 tool 消息回灌]
+    E --> B
+    C -- 否 --> F[返回最终答案]" />
+
+#### 实现步骤
+
+<Steps>
+  <Step title="把用户输入追加进 history">
+    和普通对话一样，先把本轮用户消息放入 `history`，作为循环的起点。
+  </Step>
+
+  <Step title="带 tools 调用模型">
+    请求里传入 `tools=tool_schemas`，让模型自己决定要不要调工具、调哪个。
+    这一步返回的 `message` 里，`content` 是推理（Thought），`tool_calls` 是行动（Action）。
+  </Step>
+
+  <Step title="assistant 消息原样入历史">
+    把 `message` 用 `model_dump(exclude_none=True)` 追加进 `history`。
+    含 `tool_calls` 的 assistant 消息必须保留，否则后续 `tool` 消息没有对应的调用记录，API 会报错。
+  </Step>
+
+  <Step title="判断是否终止">
+    如果 `message.tool_calls` 为空，说明模型已经给出最终答案，`content` 就是结果，直接返回。
+  </Step>
+
+  <Step title="执行工具，结果回灌">
+    遍历 `tool_calls`，按 `name` 从 `tools` 字典取出函数执行，把结果包装成
+    `{"role": "tool", "tool_call_id": ..., "content": ...}` 追加进 `history`，然后回到第 2 步继续循环。
+  </Step>
+
+  <Step title="步数上限兜底">
+    用 `MAX_STEPS` 限制循环次数。模型可能反复调工具，没有上限会死循环、烧 token。
+    达到上限仍未结束，返回提示信息即可。
+  </Step>
+</Steps>
+
+<Details title="示例：run_react">
+
+~~~py  showLineNumbers {19}
+client = OpenAI(api_key="...", base_url="...")
+"""
+复用上一节定义好的 schema 和工具字典
+tool_schemas = [ ... ]          # 传给 API 的 tools 参数
+tools = {"write_file": write_file}
+
+"""
+
+
+MAX_STEPS = 10   # 安全阀：防止模型反复调工具导致死循环
+
+
+def run_react(user_input: str, history: list) -> str:
+    """ReAct 循环：推理 -> 行动 -> 观察 -> 再推理，直到模型不再调工具。"""
+    history.append({"role": "user", "content": user_input})
+
+    for _ in range(MAX_STEPS):
+        reply = client.chat.completions.create(
+            model="...",
+            messages=history,
+            tools=tool_schemas,
+            tool_choice="auto", # 由模型自行决定是否调用一个或多个工具
+        )
+        message = reply.choices[0].message
+
+        # assistant 消息（含 content=Thought 和 tool_calls=Action）原样入历史
+        history.append(message.model_dump(exclude_none=True))
+
+        # 终止条件：模型不再要求调工具 -> content 就是最终答案
+        if not message.tool_calls:
+            return message.content or ""
+
+        # 执行所有工具调用，结果以 tool 消息回灌（Observation）
+        for call in message.tool_calls:
+            args = json.loads(call.function.arguments or "{}")
+            try:
+                result = tools[call.function.name](**args)
+            except Exception as e:
+                result = f"工具执行出错: {e}"
+            history.append({
+                "role": "tool",
+                "tool_call_id": call.id,
+                "content": str(result),
+            })
+        # 循环继续：带着 Observation 再问模型，它可能继续 Action，也可能给出 Final Answer
+
+    return "达到最大步数，未能完成任务"
+~~~
+
+</Details>
+
+#### 和上一节循环的差异
+
+| 点 | 上一节示例 | ReAct 版本 |
+| --- | --- | --- |
+| 循环 | `while True` | `for _ in range(MAX_STEPS)`，有上限 |
+| 终止 | `break` 后打印 | `return` 最终答案，函数化 |
+| 注释 | 无 | 标了 Thought / Action / Observation 对应 |
+| 保存 | 未体现 | 保存交给外层调用者，函数保持纯粹 |
+
+<Callout type="interview" title="注意">
+- 和 CoT 的区别:（CoT 纯脑内推理，ReAct 有外部 Observation 回灌）、
+- 和 Tool Calling 的关系:（ReAct 是组织多步调用的范式，底层通常就是 Tool Calling 循环）、
+- 为什么必须设步数上限:（防止模型反复调工具导致死循环和 token 浪费）。
+</Callout>

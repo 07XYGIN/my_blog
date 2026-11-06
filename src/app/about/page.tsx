@@ -1,8 +1,7 @@
 import { ArrowUpRight, Bot, Code2, GitBranch, Mail, NotebookTabs, Server } from "lucide-react";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { getPosts } from "@/lib/posts";
 import { getProjects, type Project, type ProjectStatus } from "@/lib/projects";
 
@@ -69,7 +68,7 @@ export default async function AboutPage() {
               <div className="bg-[var(--surface)] p-6 md:p-7" key={group.title}>
                 <div className="flex items-center gap-3 text-[var(--primary)]">{group.icon}<h3 className="text-lg font-semibold text-[var(--text)]">{group.title}</h3></div>
                 <p className="mt-4 text-sm leading-6 text-[var(--muted)]">{group.description}</p>
-                <div className="mt-5 flex flex-wrap gap-2">{group.items.map((item) => <Badge key={item} variant="outline">{item}</Badge>)}</div>
+                <div className="mt-5 flex flex-wrap gap-2">{group.items.map((item) => <span className="tag" key={item}>{item}</span>)}</div>
               </div>
             ))}
           </div>
@@ -96,18 +95,16 @@ function ProjectCard({ project }: { project: Project }) {
   const statusVariant = project.status === "ACTIVE" ? "teal" : project.status === "SHIPPED" ? "default" : "outline";
   return (
     <a className="focus-ring group block h-full rounded-2xl" href={project.links.source} rel="noreferrer" target="_blank">
-      <Card className="relative h-full overflow-hidden p-7 transition duration-300 group-hover:-translate-y-1 group-hover:border-[var(--primary)] md:p-8">
-        <div className="flex h-full flex-col justify-between">
-          <div>
+      <Card className="relative h-full justify-between overflow-hidden transition duration-300 group-hover:-translate-y-1 group-hover:border-[var(--primary)]">
+          <CardHeader>
             <div className="flex items-center justify-between gap-4">
-              <Badge variant={statusVariant}>{statusLabel[project.status]}</Badge>
+              <span className={`tag ${statusVariant === "teal" ? "teal" : ""}`}>{statusLabel[project.status]}</span>
               <ArrowUpRight className="text-[var(--muted)] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[var(--primary)]" size={19} />
             </div>
-            <h3 className="mt-5 text-3xl font-semibold tracking-tight">{project.title}</h3>
-            <p className="mt-4 leading-7 text-[var(--muted)]">{project.summary}</p>
-          </div>
-          <div className="mt-8 flex flex-wrap gap-2">{project.stack.map((tag) => <Badge key={tag} variant="outline">{tag}</Badge>)}</div>
-        </div>
+            <CardTitle className="mt-3 text-3xl"><h3>{project.title}</h3></CardTitle>
+            <CardDescription className="text-base leading-7">{project.summary}</CardDescription>
+          </CardHeader>
+          <CardFooter className="flex-wrap gap-2">{project.stack.map((tag) => <span className="tag" key={tag}>{tag}</span>)}</CardFooter>
       </Card>
     </a>
   );

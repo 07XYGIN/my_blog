@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { categories, type Post } from "@/lib/post-types";
@@ -57,20 +56,20 @@ export function PostExplorer({ posts }: { posts: Post[] }) {
                 className={featured ? "md:col-span-2" : undefined}
               >
                 <Link className="focus-ring group block h-full rounded-[18px]" href={`/blog/${post.slug}`}>
-                  <Card className={`flex h-full flex-col justify-between overflow-hidden p-6 transition duration-300 group-hover:-translate-y-1 group-hover:border-[var(--primary)] group-hover:shadow-[0_18px_50px_rgba(36,42,66,.11)] md:p-7 ${featured ? "min-h-60" : "min-h-72"}`}>
+                  <Card className={`h-full justify-between overflow-hidden transition duration-300 group-hover:-translate-y-1 group-hover:border-[var(--primary)] group-hover:shadow-[0_18px_50px_rgba(36,42,66,.11)] ${featured ? "min-h-60" : "min-h-72"}`}>
                     <CardHeader>
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline">{post.category}</Badge>
-                          {featured ? <Badge>最新笔记</Badge> : null}
+                          <span className="tag">{post.category}</span>
+                          {featured ? <span className="tag">最新笔记</span> : null}
                         </div>
                         <ArrowUpRight className="text-[var(--muted)] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[var(--primary)]" size={19} />
                       </div>
-                      <CardTitle className={`mt-5 leading-tight ${featured ? "text-3xl md:text-4xl" : "text-2xl"}`}>{post.title}</CardTitle>
-                      <CardDescription className="mt-2 line-clamp-3 text-[15px] leading-7">{post.description}</CardDescription>
+                      <CardTitle className={`mt-3 leading-tight ${featured ? "text-3xl md:text-4xl" : "text-2xl"}`}><h3>{post.title}</h3></CardTitle>
+                      <CardDescription className="line-clamp-3 text-[15px] leading-7">{post.description}</CardDescription>
                     </CardHeader>
-                    <CardContent className="mt-7">
-                      <div className="mb-5 flex flex-wrap gap-2">{post.tags.map((tag) => <Badge key={tag}>{tag}</Badge>)}</div>
+                    <CardContent>
+                      <div className="mb-5 flex flex-wrap gap-2">{post.tags.map((tag) => <span className="tag" key={tag}>{tag}</span>)}</div>
                       <div className="meta flex items-center justify-between border-t border-[var(--outline)] pt-4 text-xs text-[var(--muted)]">
                         <time>{post.date}</time><span>{post.readTime}</span>
                       </div>

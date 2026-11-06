@@ -1,6 +1,5 @@
 import { GitBranch, Rocket,FaceGrinning } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RouteScene } from "@/components/webgl/route-scene";
 
 
@@ -32,10 +31,12 @@ export default function TimelinePage() {
             <li className="relative grid gap-4 pl-12 md:grid-cols-[110px_1fr] md:pl-0" key={event.date + event.title}>
               <time className="meta pt-5 text-xs text-[var(--muted)]">{event.date}</time>
               <span className={`absolute left-0 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--outline)] bg-[var(--surface)] text-[var(--primary)] md:left-[124px] ${index === 0 ? "ring-4 ring-[var(--primary-soft)]" : ""}`}>{event.icon}</span>
-              <Card className="p-6 md:ml-10 md:p-7">
-                <Badge variant="outline">{event.type}</Badge>
-                <h2 className="mt-4 text-xl font-semibold tracking-tight">{event.title}</h2>
-                <p className="mt-2 leading-7 text-[var(--muted)]">{event.text}</p>
+              <Card className="md:ml-10">
+                <CardHeader>
+                  <span className="tag w-fit">{event.type}</span>
+                  <CardTitle className="mt-2 text-xl leading-snug"><h2>{event.title}</h2></CardTitle>
+                  <CardDescription className="text-base leading-7">{event.text}</CardDescription>
+                </CardHeader>
               </Card>
             </li>
           ))}

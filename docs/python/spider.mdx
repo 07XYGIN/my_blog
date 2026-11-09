@@ -1,110 +1,141 @@
 ---
-title: 'webspider与 Scrapy'
-description: ''
+title: 'webspider 与 Scrapy'
+description: '从 requests 抓接口、BeautifulSoup 解析 SSR 页面，到 Scrapy 项目结构、Pipeline、中间件与逆向 JS 签名的完整实战。'
 category: 'Python'
 tags: 'Scrapy,webspider,Python'
 date: '2026-08-06'
 readTime: '6 分钟'
 author: 'Gin'
-IS_SHOW: FALSE
+IS_SHOW: TRUE
 ---
-参考
 
-崔庆才. Python 3网络爬虫开发实战[M]. 第2版. 北京: 人民邮电出版社, 2021.
+<Callout type="note" title="参考">
+崔庆才. Python 3 网络爬虫开发实战[M]. 第2版. 北京: 人民邮电出版社, 2021.
+</Callout>
 
-## log
-~~~py
+## 基础工具
+
+### 日志配置
+
+```python title="log.py" showLineNumbers
 import logging
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+```
 
-~~~
+## 两种最小抓取模式
 
-## 从接口抓取数据
+```bash
+uv add requests beautifulsoup4
+```
 
-从普通的没有任何安全的措施的接口中获取数据
+### 从接口抓取数据
 
-url:"https://spa1.scrape.center/"
+从没有任何安全措施的普通接口获取数据，目标站点：`https://spa1.scrape.center/`。
 
-~~~py
+```python title="api_spider.py" showLineNumbers
 import logging
-import requests as r
 import time
+
+import requests
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+logger = logging.getLogger(__name__)
+
+BASE_URL = "https://spa1.scrape.center/api/movie/"
+PAGE_SIZE = 10
+
 
 def api_spider():
-    url = "https://spa1.scrape.center/api/movie/"
-    params = {
-        "limit":10,
-        "offset":0
-    }
-    i = 0
+    offset = 0
     with open("spider_.txt", "a", encoding="utf-8") as file:
         while True:
-            response:dict = r.get(url="https://spa1.scrape.center/api/movie/",params=params).json()
-            result = response.get('results',{})
-            if not result :
+            response = requests.get(
+                BASE_URL,
+                params={"limit": PAGE_SIZE, "offset": offset},
+                timeout=10,  # 一定要设置超时，否则网络异常时会一直卡住
+            )
+            response.raise_for_status()
+            data: dict = response.json()
+
+            results = data.get("results", [])
+            if not results:
                 break
-            total:int = response.get('count')
-            if i >= total:
-                break
-            for item in result:
-                id = item.get('id')
-                details = r.get(url=f"{url}{id}").json()
+
+            for item in results:
+                movie_id = item.get("id")  # 不要命名为 id，会遮蔽内置函数
+                details = requests.get(f"{BASE_URL}{movie_id}/", timeout=10).json()
                 file.write(f"ID: {details.get('id')}\n")
                 file.write(f"名称: {details.get('name')}\n")
                 file.write(f"详情: {details.get('drama')}\n")
                 file.write(f"创建时间: {details.get('published_at')}\n")
                 file.write(f"评分: {details.get('score')}\n")
                 file.write("-" * 30 + "\n")
-            i = i + 10
-            params['offset'] = i
-            time.sleep(1)
 
+            logger.info("已抓取 offset=%s 的数据", offset)
+            offset += PAGE_SIZE
+            if offset >= data.get("count", 0):
+                break
+            time.sleep(1)  # 控制频率，避免对目标站造成压力
 
 
 if __name__ == "__main__":
     api_spider()
-~~~
+```
+
+### 对于 SSR 网站的抓取模式
+
+使用 `BeautifulSoup` 分析 DOM 结构。演示站点需要先登录，登录成功后带上 `cookies` 再请求列表页。
+
+```python title="ssr_spider.py" showLineNumbers
+import requests
+from bs4 import BeautifulSoup
+
+LOGIN_URL = "https://login2.scrape.center/login"
+INDEX_URL = "https://login2.scrape.center/"
 
 
-## 对于SSR网站的抓取模式
-使用BeautifulSoup分析DOM
-~~~py
-def ssr_spider():
-    baseurl = "https://login2.scrape.center/login"
-    body = {
-        "username":"admin",
-        "password":"admin"
-    }
-    result = r.post(url = baseurl,data = body,allow_redirects=False) # 拿到原始响应
+def ssr_spider() -> list[dict]:
+    body = {"username": "admin", "password": "admin"}
+    result = requests.post(LOGIN_URL, data=body, allow_redirects=False, timeout=10)  # 拿到原始响应
 
     cookies = result.cookies
-    data = r.get("https://login2.scrape.center/",cookies=cookies) # 拿到html
-    soup = BeautifulSoup(data.text, 'html.parser')
+    data = requests.get(INDEX_URL, cookies=cookies, timeout=10)  # 拿到 html
+    soup = BeautifulSoup(data.text, "html.parser")
 
-    movie_cards = soup.select('.el-card.item') # 使用bs4分析DOM结构
-    for card in movie_cards:
-        detail_link = card.select_one('.name')['href'] 
-        movie_id = detail_link.split('/')[-1] 
-        name_tag = card.select_one('.name h2')
-        name = name_tag.text.strip() 
-        category_tags = card.select('.categories .category span')
-        categories = [cat.text.strip() for cat in category_tags]
-        info_tags = card.select('.info span')
+    movies = []
+    for card in soup.select(".el-card.item"):  # 使用 bs4 分析 DOM 结构
+        detail_link = card.select_one(".name")["href"]
+        movie_id = detail_link.rstrip("/").split("/")[-1]
+        name = card.select_one(".name h2").text.strip()
+        categories = [cat.text.strip() for cat in card.select(".categories .category span")]
+        info_tags = card.select(".info span")
         if len(info_tags) >= 3:
             region = info_tags[0].text.strip()
             duration = info_tags[2].text.strip()
         else:
             region = ""
             duration = ""
-~~~
+
+        movies.append({
+            "id": movie_id,
+            "name": name,
+            "categories": categories,
+            "region": region,
+            "duration": duration,
+        })
+    return movies
+
+
+if __name__ == "__main__":
+    print(ssr_spider())
+```
 
 ## Scrapy
 
@@ -114,243 +145,302 @@ def ssr_spider():
 uv run scrapy startproject water_tenders .
 ```
 
-
 ### 常用命令
 
-```bash
-uv run scrapy genspider ggzyfw.beijing ggzyfw.beijing.gov.cn # 新建一个 spider，文件名为 ggzyfw.beijing，对应 URL 为 ggzyfw.beijing.gov.cn
-
-uv run scrapy list # 查询项目中有哪些 spider
-
-uv run scrapy crawl genspider -L WARNING # 运行指定 spider,且只展示WARGING级别的日志
-
-uv run scrapy shell "https://example.com" -s ROBOTSTXT_OBEY=False # 调试网页 绕过 robots.txt
-```
+| 命令 | 用途 |
+| --- | --- |
+| `uv run scrapy genspider ggzyfw_beijing ggzyfw.beijing.gov.cn` | 新建一个 spider，spider 名与文件名为 `ggzyfw_beijing`，允许抓取的域名为 `ggzyfw.beijing.gov.cn`（spider 名建议只用字母、数字和下划线，名字里的 `.` 会被转成下划线） |
+| `uv run scrapy list` | 查询项目中有哪些 spider |
+| `uv run scrapy crawl toscrape -L WARNING` | 运行指定名称的 spider（`toscrape` 是 spider 的 `name`），且只展示 WARNING 级别的日志 |
+| `uv run scrapy shell "https://example.com" -s ROBOTSTXT_OBEY=False` | 调试网页，绕过 `robots.txt` |
 
 ### 文件目录
-```python
-water_tenders/ # Scrapy 项目包
-    items.py # 定义要抓取的数据结构，例如公告标题、发布时间、来源网站、详情链接和正文。
-    middlewares.py # 请求和响应处理中间件，例如请求头、代理、重试和 Cookie。
-    pipelines.py # 数据处理管道，用于去重、清洗、写入 Excel 或数据库。
-    settings.py # Scrapy 全局设置，例如并发数、下载延迟和 robots.txt 策略。
-    spiders/ # 存放爬虫文件，每个网站通常对应一个 spider。
-    __init__.py
-scrapy.cfg # Scrapy 的配置入口。告诉 Scrapy 默认设置文件在哪里
-```
+
+<FileTree
+  rootLabel="water_tenders"
+  tree={[
+    "water_tenders/items.py",
+    "water_tenders/middlewares.py",
+    "water_tenders/pipelines.py",
+    "water_tenders/settings.py",
+    "water_tenders/spiders/",
+    "water_tenders/__init__.py",
+    "scrapy.cfg"
+  ]}
+/>
+
+| 路径 | 职责 |
+| --- | --- |
+| `items.py` | 定义要抓取的数据结构，例如公告标题、发布时间、来源网站、详情链接和正文 |
+| `middlewares.py` | 请求和响应处理中间件，例如请求头、代理、重试和 Cookie |
+| `pipelines.py` | 数据处理管道，用于去重、清洗、写入 Excel 或数据库 |
+| `settings.py` | Scrapy 全局设置，例如并发数、下载延迟和 `robots.txt` 策略 |
+| `spiders/` | 存放爬虫文件，每个网站通常对应一个 spider |
+| `scrapy.cfg` | Scrapy 的配置入口，告诉 Scrapy 默认设置文件在哪里 |
+
+### 完整示例：抓取 quotes.toscrape.com
+
+<Details title="展开查看完整步骤（新建 spider → Item → parse → Pipeline → settings）" open>
+
+<Steps>
+  <Step title="新建 spider">
+
+    ```bash
+    uv run scrapy genspider toscrape quotes.toscrape.com
+    ```
+
+    ```python title="water_tenders/spiders/toscrape.py" showLineNumbers
+    import scrapy
 
 
+    class ToscrapeSpider(scrapy.Spider):
+        name = "toscrape"  # spider name
+        allowed_domains = ["quotes.toscrape.com"]  # 允许爬取的域名
+        start_urls = ["https://quotes.toscrape.com/"]  # 从哪些 URL 开始抓取
 
-### start
+        def parse(self, response):
+            pass
+    ```
 
-示例 抓取 https://quotes.toscrape.com/ 文章列表
+  </Step>
 
-<Details title="">
-    <Steps>
-        <Step title="新建spider">
-            ~~~sh
-                scrapy genspider toscrape https://quotes.toscrape.com/
-            ~~~
-            ~~~py
-            #toscrape.py
-            import scrapy
+  <Step title="定义爬取数据的数据结构">
 
-
-            class ToscrapeSpider(scrapy.Spider):
-                name = "toscrape" # spider name
-                allowed_domains = ["quotes.toscrape.com"] # 允许爬取的域名
-                start_urls = ["https://quotes.toscrape.com/"] # 从哪个域名开始
-
-                def parse(self, response):
-                    pass
+    ```python title="water_tenders/items.py" showLineNumbers
+    # 抓取的主要目标是从非结构化数据源（通常是网页）中提取结构化数据。
+    # spider 可以把提取到的数据封装成 Item 对象（也可以是字典、dataclass 等）后 yield 出去，
+    # 这些对象本质上就是一组键值对。
+    # 可以定义多个 Item
+    from dataclasses import dataclass
 
 
-            ~~~
-        </Step>
-        <Step title="定义爬取数据的数据结构">
-        ~~~python
-        # item.py
-        """
-        **官网解释:**
+    @dataclass
+    class QuoteItem:
+        text: str | None = None
+        author: str | None = None
+        tags: list[str] | None = None
+    ```
 
-        抓取的主要目标是从非结构化数据源中提取结构化数据，通常这些数据源是网页。
-        spider可以将这些提取的数据以特定格式返回，比如作为项目呈现，或者以 Python 对象的形式呈现，这些对象可以表示键值对。
+  </Step>
 
-        可以有多个item
-        
-        """
-        from dataclasses import dataclass
+  <Step title="分析 DOM 结构 / 从接口抓取数据">
+
+    ```python title="water_tenders/spiders/toscrape.py" showLineNumbers {17,22}
+    import scrapy
+
+    from water_tenders.items import QuoteItem
 
 
-        @dataclass
-        class QuoteItem:
-            text: str | None = None
-            author: str | None = None
-            tags: list[str] | None = None
-        ~~~
-        </Step>
-        <Step title="分析DOM结构 / 从接口抓取数据">
-        ~~~py
-        import scrapy
-        from water_tenders.items import QuoteItem          
+    class ToscrapeSpider(scrapy.Spider):
+        name = "toscrape"
+        allowed_domains = ["quotes.toscrape.com"]
+        start_urls = ["https://quotes.toscrape.com/"]
 
-        class ToscrapeSpider(scrapy.Spider):
-            name = "toscrape"
-            allowed_domains = ["quotes.toscrape.com"]
-            start_urls = ["https://quotes.toscrape.com/"]
+        def parse(self, response):
+            for quote in response.css("div.quote"):
+                item = QuoteItem()
+                item.author = quote.css("small.author::text").get()
+                item.tags = quote.css("div.tags a.tag::text").getall()
+                item.text = quote.css("span.text::text").get()
+                yield item  # 暂停，丢给引擎；引擎将 item 丢给 pipeline，处理之后继续下一步
 
-            def parse(self, response):
-                for quote_item in response.css("div.quote"):
-                    item = QuoteItem()
-                    item.author = quote_item.css("small.author::text").extract_first()
-                    item.tags = quote_item.css("div.tags a.tag::text").extract()
-                    item.text = quote_item.css("div.quote span.text::text").extract_first()
-                    yield item # 暂停 丢给引擎 引擎将item丢给pipeline 处理之后继续下一步
-                next = response.css('nav ul.pager li.next a::attr("href")').extract_first() # 拿到分页路径
-                url = response.urljoin(next) # 和原始url拼接成新的url
-                yield scrapy.Request(url, callback=self.parse) # 暂停 丢给引擎  引擎生成新的请求 
-        ~~~
-        </Step>
-        <Step title="在pipelines处理数据">
-        ~~~py
-        # 可以有多个pipeline
-        class WaterTendersPipeline:
-            def open_spider(self, spider):
-                """
-                hook
-                在 spider 开始爬取之前调用一次,整个爬取过程只调用一次
-                适合做初始化工作:打开文件、连接数据库、建立 Redis 连接等
-                """
-                self.f = open("quotes.txt", "a", encoding="utf-8")
-                """ 
-                
-                """
+            next_page = response.css("nav ul.pager li.next a::attr(href)").get()  # 拿到分页路径
+            if next_page:  # 最后一页没有「下一页」，必须判空
+                url = response.urljoin(next_page)  # 和原始 url 拼接成新的 url
+                yield scrapy.Request(url, callback=self.parse)  # 暂停，丢给引擎；引擎生成新的请求
+    ```
 
-            def close_spider(self, spider):
-                """
-                hook
-                在 spider 爬取结束(正常结束或异常终止)之后调用一次
-                适合做收尾:关闭文件句柄、断开数据库连接、提交事务等
-                """
-                self.f.close()
+    `.get()` 返回第一个匹配结果（没有则为 `None`），`.getall()` 返回所有匹配结果的列表；它们是新版推荐写法，等价于旧的 `.extract_first()` 与 `.extract()`。
 
-            def process_item(self, item, spider): 
-                """
-                hook 每个 yield 出来的 item 都会经过这个方法,必须的核心方法
-                """
-                self.f.write(f"by:{item.author}\n")
-                self.f.write(f"tags:{item.tags}\n")
-                self.f.write(f"text:{item.text}\n")
-                self.f.write("-" * 30 + "\n")
-                return item
+  </Step>
 
-        ~~~
-        
-        </Step>
-        <Step title="在setting配置pipeline">
-        ~~~py
-            ITEM_PIPELINES = {
-                #数字越小,越先执行
-                "water_tenders.pipelines.ValidatePipeline": 100,   # 先做数据校验/清洗
-                "water_tenders.pipelines.DedupPipeline": 200,       # 再去重
-                "water_tenders.pipelines.SaveToFilePipeline": 300,  # 最后存文件
-                "water_tenders.pipelines.SaveToDBPipeline": 400,    # 或者存数据库
-            }
-        ~~~
+  <Step title="在 pipelines 处理数据">
 
-        </Step>
-    </Steps>
+    ```python title="water_tenders/pipelines.py" showLineNumbers {3,11,19}
+    # 可以有多个 pipeline
+    class WaterTendersPipeline:
+        def open_spider(self, spider):
+            """
+            hook
+            在 spider 开始爬取之前调用一次，整个爬取过程只调用一次
+            适合做初始化工作：打开文件、连接数据库、建立 Redis 连接等
+            """
+            self.f = open("quotes.txt", "a", encoding="utf-8")
+
+        def close_spider(self, spider):
+            """
+            hook
+            在 spider 爬取结束（正常结束或异常终止）之后调用一次
+            适合做收尾：关闭文件句柄、断开数据库连接、提交事务等
+            """
+            self.f.close()
+
+        def process_item(self, item, spider):
+            """
+            hook
+            每个 yield 出来的 item 都会经过这个方法，必须的核心方法
+            """
+            self.f.write(f"by:{item.author}\n")
+            self.f.write(f"tags:{item.tags}\n")
+            self.f.write(f"text:{item.text}\n")
+            self.f.write("-" * 30 + "\n")
+            return item
+    ```
+
+    <Callout type="tip" title="Pipeline 生命周期">
+    `open_spider` → 每个 item 的 `process_item` → `close_spider`。多个 Pipeline 按 `ITEM_PIPELINES` 的数字从小到大依次执行，前一个的返回值会传给后一个；想丢弃某个 item 时，在 `process_item` 里抛出 `scrapy.exceptions.DropItem`。
+    </Callout>
+
+  </Step>
+
+  <Step title="在 settings 配置 pipeline">
+
+    ```python title="water_tenders/settings.py" showLineNumbers
+    ITEM_PIPELINES = {
+        # 数字越小，越先执行
+        "water_tenders.pipelines.WaterTendersPipeline": 300,
+    }
+    ```
+
+    有多个 Pipeline 时，按职责拆分并用数字控制顺序（下面的类名只是示意，需要自己实现）：
+
+    ```python title="water_tenders/settings.py（多个 Pipeline 示意）" showLineNumbers
+    ITEM_PIPELINES = {
+        "water_tenders.pipelines.ValidatePipeline": 100,    # 先做数据校验/清洗
+        "water_tenders.pipelines.DedupPipeline": 200,       # 再去重
+        "water_tenders.pipelines.SaveToFilePipeline": 300,  # 最后存文件
+        "water_tenders.pipelines.SaveToDBPipeline": 400,    # 或者存数据库
+    }
+    ```
+
+  </Step>
+</Steps>
+
 </Details>
 
+### 基于逆向 JS 的 spider
 
-### 基于逆向JS的spider
-~~~js
-// 从某网站拿到的sign 加密逻辑
-// 忽略一些
+从目标站点逆向出 `sign` 加密逻辑，用 `execjs` 在 Python 中调用。
+
+```javascript title="sign.js"
+// 从某网站拿到的 sign 加密逻辑
+// 忽略一些（d、h、l 等辅助函数在此省略，实际使用时需要补全）
 
 const md5 = function (n, r, t) {
     return r ? t ? d(r, n) : function (n, r) {
         return h(d(n, r))
-    }(r, n) : t ? l(n) : function (n) {
+    }(r, n) : t ? l(n) : function (n, r) {
         return h(l(n))
     }(n)
 }
-const getQuery = ()=>{
+
+const getQuery = () => {
     const timestamp = new Date().getTime()
     const token = md5("tuling" + timestamp + 1)
     const params = {
-            sign: token,
-            _ts: timestamp,
-        };
+        sign: token,
+        _ts: timestamp,
+    };
     return new URLSearchParams(params).toString()
 }
-~~~
+```
 
-~~~py
+```python title="mashangpa.py" showLineNumbers {19,24}
 """
-使用execjs模块运行JS
+使用 execjs 模块运行 JS
 
-uv add execjs
-
+uv add PyExecJS    # PyPI 上的包名是 PyExecJS，导入时使用 import execjs
 """
-import scrapy
+from pathlib import Path
+
 import execjs as js
+import scrapy
+
+SIGN_JS = Path(__file__).resolve().parent / "sign.js"  # 不依赖当前工作目录
 
 
 class MashangpaSpider(scrapy.Spider):
     name = "mashangpa"
     allowed_domains = ["www.mashangpa.com"]
     start_urls = ["https://www.mashangpa.com/problem-detail/4/"]
-    cookie = "12ypwyjzwzhig6ljc24juoqh2a8diygi"
+    # 登录后浏览器里的 sessionid，属于个人登录凭证，请替换成自己的，不要写进公开的文章或仓库
+    session_id = "<your-sessionid>"
+
     def parse(self, response):
-        with open('1.js', 'r', encoding='utf-8') as f: # 打开JS文件
-            js_code = f.read()
-            ctx = js.compile(js_code)
-            result = ctx.call('getQuery')# 拿到getQuery函数的返回值
-            yield scrapy.Request(
-                method="GET",
-                url=f"https://www.mashangpa.com/api/problem-detail/4/data/?{result}",
-                cookies={
-                    "sessionid":self.cookie,
-                },
-                callback=self.parse_api, # 将请求结果丢给 parse_api
-            )
+        js_code = SIGN_JS.read_text(encoding="utf-8")  # 读取 JS 文件
+        ctx = js.compile(js_code)
+        result = ctx.call("getQuery")  # 拿到 getQuery 函数的返回值
+        yield scrapy.Request(
+            method="GET",
+            url=f"https://www.mashangpa.com/api/problem-detail/4/data/?{result}",
+            cookies={"sessionid": self.session_id},
+            callback=self.parse_api,  # 将请求结果丢给 parse_api
+        )
+
     def parse_api(self, response):
         """
-        response.json() 对应的response
-        ctx.eval(变量) 拿到变量
+        response.json() 获取 JSON 响应
+        ctx.eval(变量) 拿到 JS 变量
         """
+        data = response.json()
+        self.logger.info("接口返回：%s", data)
+```
 
-~~~
+<Callout type="warning" title="execjs 的边界">
+`execjs` 依赖本机已安装的 JS 运行时（Node.js 等），只能执行纯逻辑型 JS。遇到依赖浏览器环境（`window`、`document`、`navigator`）的加密代码，需要改用 Playwright 或补环境。另外 `PyExecJS` 已多年没有更新，在较新的 Python 版本上如果遇到兼容问题，可以改用 `py-mini-racer` 等替代方案。
+</Callout>
 
 ### Middleware
 
-使用中间件之前 需要在`settings.py`启动它
+使用中间件之前，需要在 `settings.py` 中启用它。
 
-~~~py
-# settings.py
+```python title="water_tenders/settings.py" showLineNumbers
 DOWNLOADER_MIDDLEWARES = {
-    # 数字越小最先启动
-    "water_tenders.middlewares.WaterTendersDownloaderMiddleware": 543,
+    # 数字越小，process_request 越先执行
     "water_tenders.middlewares.ProxyMiddleware": 544,
 }
-~~~
-~~~py
-# 自定义中间件
-from scrapy.http import HtmlResponse
-class ProxyMiddleware(object):
+```
+
+真正的代理中间件只负责设置 `request.meta["proxy"]`，然后返回 `None`，让请求继续走后面的中间件和下载器：
+
+```python title="water_tenders/middlewares.py" showLineNumbers {6,7}
+class ProxyMiddleware:
+    PROXY = "http://127.0.0.1:7890"  # 示例代理地址，请替换成自己的
+
     def process_request(self, request, spider):
+        # 设置代理后返回 None，请求会继续真实下载
+        request.meta["proxy"] = self.PROXY
+        return None
+```
+
+<Details title="调试用：直接返回 Response 的中间件">
+
+```python title="water_tenders/middlewares.py" showLineNumbers {7}
+from scrapy.http import HtmlResponse
+
+
+class MockResponseMiddleware:
+    def process_request(self, request, spider):
+        # 直接返回 Response 会跳过后续下载器，常用于调试或本地 mock
         return HtmlResponse(
-        url=request.url,status=200,
-        encoding='utf-8',
-        body='Test Downloader Middleware')
+            url=request.url,
+            status=200,
+            encoding="utf-8",
+            body="Test Downloader Middleware",
+        )
+```
 
-~~~
+<Callout type="danger" title="仅用于调试">
+这个中间件会**跳过真实下载**，所有请求都拿到同一段 `Test Downloader Middleware`，所以它不是代理中间件。调试完成后记得从 `DOWNLOADER_MIDDLEWARES` 中移除。
+</Callout>
 
-### settings.py
+</Details>
 
+### settings.py 关键配置
 
-```python
+<Details title="展开查看完整 settings.py">
+
+```python title="water_tenders/settings.py" showLineNumbers
 # Scrapy settings for water_tenders project
 
 BOT_NAME = "water_tenders"
@@ -359,38 +449,37 @@ NEWSPIDER_MODULE = "water_tenders.spiders"
 
 # ========== 请求与反爬 ==========
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-ROBOTSTXT_OBEY = False  # 很多网站robots.txt限制严格，爬取公开数据可关闭
-DOWNLOAD_DELAY = 2       # 请求间隔2秒
+ROBOTSTXT_OBEY = False  # 默认是 True；关闭前请确认目标站点允许抓取，并自行评估合规风险
+DOWNLOAD_DELAY = 2      # 请求间隔 2 秒
 CONCURRENT_REQUESTS_PER_DOMAIN = 2  # 每域名并发数
-RANDOMIZE_DOWNLOAD_DELAY = True  # 在延迟基础上随机±0.5秒，更像真人
+RANDOMIZE_DOWNLOAD_DELAY = True     # 实际延迟在 0.5~1.5 倍 DOWNLOAD_DELAY 之间随机，更像真人
 
 # ========== 请求头 ==========
+# 不要手动设置 Accept-Encoding：Scrapy 会根据已安装的解压库自动设置，
+# 手写 br 但没有安装 brotli 时，响应内容会无法解压而变成乱码
 DEFAULT_REQUEST_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
 }
 
-# ========== 下载中间件（常用的几个） ==========
+# ========== 下载中间件 ==========
+# 内置中间件默认已启用（包括应用 USER_AGENT 的 UserAgentMiddleware，不要把它设为 None）
+# 自定义中间件在这里注册，数字越小越靠近引擎
 DOWNLOADER_MIDDLEWARES = {
-    "scrapy.downloadermiddlewares.useragent.UserAgentMiddleware": None,  # 禁用默认UA
-    "scrapy.downloadermiddlewares.retry.RetryMiddleware": 90,
-    "scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware": 110,
+    # "water_tenders.middlewares.ProxyMiddleware": 544,  # 需要代理时取消注释
 }
 
 # ========== 重试机制 ==========
 RETRY_ENABLED = True
-RETRY_TIMES = 3  # 失败重试3次
+RETRY_TIMES = 3  # 失败重试 3 次
 RETRY_HTTP_CODES = [500, 502, 503, 504, 408, 429]  # 这些状态码触发重试
 
 # ========== 重定向 ==========
 REDIRECT_ENABLED = True
-REDIRECT_MAX_TIMES = 3  # 最多跟随3次重定向
+REDIRECT_MAX_TIMES = 3  # 最多跟随 3 次重定向
 
 # ========== 超时设置 ==========
-DOWNLOAD_TIMEOUT = 30  # 下载超时30秒
+DOWNLOAD_TIMEOUT = 30  # 下载超时 30 秒
 
 # ========== 数据管道 ==========
 ITEM_PIPELINES = {
@@ -406,7 +495,7 @@ AUTOTHROTTLE_DEBUG = False
 
 # ========== 日志 ==========
 LOG_LEVEL = "INFO"
-LOG_FILE = "logs/scrapy.log"
+LOG_FILE = "logs/scrapy.log"  # 需要提前创建 logs/ 目录
 LOG_FILE_APPEND = True
 LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
 
@@ -414,13 +503,25 @@ LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
 FEED_EXPORT_ENCODING = "utf-8"
 
 # ========== 内存/性能 ==========
-MEMUSAGE_ENABLED = True  # 监控内存使用
-MEMUSAGE_LIMIT_MB = 512  # 内存超过512MB时警告
-CLOSESPIDER_TIMEOUT = 3600  # 爬虫运行1小时后自动关闭（防止死循环）
+MEMUSAGE_ENABLED = True     # 监控内存使用
+MEMUSAGE_WARNING_MB = 384   # 内存超过 384MB 时发出警告
+MEMUSAGE_LIMIT_MB = 512     # 内存超过 512MB 时关闭爬虫
+CLOSESPIDER_TIMEOUT = 3600  # 爬虫运行 1 小时后自动关闭（防止死循环）
 
 # ========== 调试（开发时启用） ==========
-# HTTPCACHE_ENABLED = True  # 开发时启用缓存，避免重复请求
-# HTTPCACHE_EXPIRATION_SECS = 86400  # 缓存24小时
+# HTTPCACHE_ENABLED = True            # 开发时启用缓存，避免重复请求
+# HTTPCACHE_EXPIRATION_SECS = 86400   # 缓存 24 小时
 # HTTPCACHE_DIR = "httpcache"
 # HTTPCACHE_IGNORE_HTTP_CODES = [500, 502, 503]
 ```
+
+</Details>
+
+| 分组 | 关键项 | 作用 |
+| --- | --- | --- |
+| 反爬 | `USER_AGENT`、`DOWNLOAD_DELAY`、`RANDOMIZE_DOWNLOAD_DELAY` | 模拟真人请求节奏 |
+| 并发 | `CONCURRENT_REQUESTS_PER_DOMAIN` | 限制单域名并发，降低被封风险 |
+| 重试 | `RETRY_TIMES`、`RETRY_HTTP_CODES` | 对 5xx / 408 / 429 自动重试 |
+| 限速 | `AUTOTHROTTLE_*` | 根据响应延迟自动调整速度，推荐开启 |
+| 性能 | `MEMUSAGE_*`、`CLOSESPIDER_TIMEOUT` | 防内存泄漏与死循环 |
+| 调试 | `HTTPCACHE_*` | 开发阶段缓存响应，减少重复请求 |

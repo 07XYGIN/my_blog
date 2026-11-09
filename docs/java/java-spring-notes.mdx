@@ -6,33 +6,40 @@ tags: 'Java,Spring Boot,MyBatis'
 date: '2026-08-05'
 readTime: '30 分钟'
 author: 'Gin'
-IS_SHOW: FALSE
+IS_SHOW: TRUE
 ---
-## 数组
 
-### `isEmpty()`
+## Java 基础
 
-```java
+### isEmpty()
+
+```java title="IsEmptyDemo.java" showLineNumbers
 List<String> list1 = new ArrayList<>();     // 空列表
-list1.isEmpty();  // true ✅
+list1.isEmpty();  // true
 
 List<String> list2 = Arrays.asList("a");    // 有 1 个元素
-list2.isEmpty();  // false ❌
+list2.isEmpty();  // false
 
 List<String> list3 = null;                  // 这是 null，不是空列表
-list3.isEmpty();  // 报错 NullPointerException 💥
+list3.isEmpty();  // 报错 NullPointerException
+
+// 不确定是否为 null 时，先判空；Spring 提供了现成的工具方法
+boolean empty = list3 == null || list3.isEmpty();
+boolean empty2 = CollectionUtils.isEmpty(list3);  // org.springframework.util.CollectionUtils
 ```
 
-## Java 定义变量
+### 常用修饰符与关键字
 
-- `private`——> 只能在本类内部访问
-~~~java
-// books.java
+- `private`：只能在本类内部访问
+
+```java title="Books.java / Main.java" showLineNumbers {20}
+// Books.java
 public class Books {
     private String bookName;
     private String author;
     private String publisher;
-    private String ISBN;
+    private String isbn;  // 字段名使用小驼峰，不要全大写
+
     public void setBookName(String bookName) {
         this.bookName = bookName;
     }
@@ -42,94 +49,102 @@ public class Books {
     }
 }
 
-// main.java
+// Main.java
+Books book = new Books();
 
-Books book = new Books()
+String name = book.bookName;      // 编译报错：bookName has private access in Books，需要主动暴露
+String ok = book.getBookName();   // 通过 getter 访问
+```
 
-book.bookName // 拿不到，需要主动暴漏
-~~~
+- `final`：一旦赋值不可再修改
 
-- `final`——>  一旦赋值不可再修改
-
-~~~Java
-// main.java
+```java title="Main.java" showLineNumbers
 final Integer age = 20;
-age = 30; //报错
+age = 30;  // 报错
+```
 
+`final` 修饰引用类型时，限制的是「引用不能指向别的对象」，对象内部的内容仍然可以修改。
 
-~~~
-- `interface`—> 只定义"要做什么"(方法签名),具体实现交给别人(比如 MyBatis 根据接口自动生成实现类)
-- `static` -> 不用创建对象就能访问
-~~~java
-// People.java 
+- `interface`：只定义「要做什么」（方法签名），具体实现交给别人（比如 MyBatis 根据接口自动生成实现类）
+- `static`：不用创建对象就能访问
+
+```java title="People.java / Main.java" showLineNumbers
+// People.java
 public class People {
-    public static Integer addCount() {
-        return count++;
+    private static int count = 0;
+
+    public static int addCount() {
+        return ++count;
     }
 }
-// main.java
-People.addCount(); //不需要将类示例
-~~~
-- `public` -> 任何地方都可以访问
 
+// Main.java
+People.addCount();  // 不需要将类实例化
+```
 
-## Java 数据类型
+- `public`：任何地方都可以访问
 
-### 高精度与日期类型（常用引用类型）
-- `BigDecimal` —— 高精度数字（财务计算必备，解决浮点精度丢失）
-- `LocalDateTime` —— 本地日期时间（Java 8+ 推荐，替代 `Date` 和 `Calendar`）
-- `BigInteger` —— 超大整数（比 `long` 还大时使用）
+### 数据类型
 
----
+#### 高精度与日期类型（常用引用类型）
 
-### Java 基本数据类型
-- `byte` —— 8 位，-128~127，省内存用
-- `short` —— 16 位，较少用
-- `int` —— 32 位，**默认整数，最常用**
-- `long` —— 64 位，赋值加 `L`（如 `100L`）
-- `float` —— 32 位，赋值加 `F`（如 `3.14F`）
-- `double` —— 64 位，**默认小数，最常用**
-- `char` —— 16 位，单引号，存单个字符（如 `'A'`、`'中'`）
-- `boolean` —— 仅 `true` / `false`
+- `BigDecimal`：高精度数字（财务计算必备，解决浮点精度丢失），创建时使用字符串构造 `new BigDecimal("0.1")`，不要传 `double`
+- `LocalDateTime`：本地日期时间（Java 8+ 推荐，替代 `Date` 和 `Calendar`）
+- `BigInteger`：超大整数（比 `long` 还大时使用）
 
----
+#### Java 基本数据类型
 
-### 对应的包装类（引用类型）
-> 基本类型 → 包装类（用于集合、泛型等场景）
+- `byte`：8 位，-128~127，省内存用
+- `short`：16 位，较少用
+- `int`：32 位，**默认整数，最常用**
+- `long`：64 位，赋值加 `L`（如 `100L`）
+- `float`：32 位，赋值加 `F`（如 `3.14F`）
+- `double`：64 位，**默认小数，最常用**
+- `char`：16 位，单引号，存单个字符（如 `'A'`、`'中'`）
+- `boolean`：仅 `true` / `false`
 
-| 基本类型 | 包装类    |
-|----------|-----------|
-| `byte`   | `Byte`    |
-| `short`  | `Short`   |
-| `int`    | `Integer` |
-| `long`   | `Long`    |
-| `float`  | `Float`   |
-| `double` | `Double`  |
-| `char`   | `Character` |
-| `boolean`| `Boolean` |
----
+#### 对应的包装类（引用类型）
 
+基本类型 → 包装类（用于集合、泛型等场景）：
 
-## Spring Boot 学习笔记
+| 基本类型 | 包装类 |
+| --- | --- |
+| `byte` | `Byte` |
+| `short` | `Short` |
+| `int` | `Integer` |
+| `long` | `Long` |
+| `float` | `Float` |
+| `double` | `Double` |
+| `char` | `Character` |
+| `boolean` | `Boolean` |
 
----
+## Spring Boot
 
-## 环境与依赖
+### 环境与依赖
 
-查找 Maven 依赖:[https://mvnrepository.com/](https://mvnrepository.com/)
+[查找 Maven 依赖(点击进入)](https://mvnrepository.com/)
 
-### pom.xml 基础依赖
+#### pom.xml 基础依赖
 
-> ⚠️ **版本对齐提醒**：`mybatis-spring-boot-starter` 的版本必须与 Spring Boot 的大版本对齐，否则可能出现 `DataSource` 检测顺序错乱的问题。
->
-> - Spring Boot 3.2～3.5 → `mybatis-spring-boot-starter` 使用 **3.0.x**。
-> - Spring Boot 4.x → `mybatis-spring-boot-starter` 使用 **4.0.0**。
+**版本对齐提醒**：`mybatis-spring-boot-starter` 的版本必须与 Spring Boot 的大版本对齐，否则可能出现 `DataSource` 检测顺序错乱的问题。
 
-```xml
+| Spring Boot 版本 | `mybatis-spring-boot-starter` 版本 |
+| --- | --- |
+| 3.2～3.5 | 3.0.x |
+| 4.x | 4.0.0 |
+
+```xml title="pom.xml" showLineNumbers
 <dependencies>
+    <!-- Spring Web（已经包含 spring-boot-starter，不需要再单独声明） -->
     <dependency>
         <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter</artifactId>
+        <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <!-- 参数校验：@NotNull、@NotBlank、MethodArgumentNotValidException 都依赖它 -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
 
     <dependency>
@@ -138,13 +153,7 @@ People.addCount(); //不需要将类示例
         <scope>test</scope>
     </dependency>
 
-    <!-- Spring Web -->
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-web</artifactId>
-    </dependency>
-
-    <!-- Lombok:简化实体类样板代码 -->
+    <!-- Lombok：简化实体类样板代码 -->
     <dependency>
         <groupId>org.projectlombok</groupId>
         <artifactId>lombok</artifactId>
@@ -158,7 +167,7 @@ People.addCount(); //不需要将类示例
         <scope>runtime</scope>
     </dependency>
 
-    <!-- MyBatis(注意版本对齐 Spring Boot 大版本,见上方提醒) -->
+    <!-- MyBatis（注意版本对齐 Spring Boot 大版本，见上方提醒） -->
     <dependency>
         <groupId>org.mybatis.spring.boot</groupId>
         <artifactId>mybatis-spring-boot-starter</artifactId>
@@ -167,43 +176,49 @@ People.addCount(); //不需要将类示例
 </dependencies>
 ```
 
----
+<Callout type="tip" title="官方 starter 不要手写版本号">
+`spring-boot-starter-*` 系列依赖的版本由 `spring-boot-starter-parent` 统一管理，不需要写 `<version>`，手写版本反而容易和 Spring Boot 主版本不一致。`<scope>compile</scope>` 也是默认值，可以省略。下文的 security、redis 依赖同理。
+</Callout>
 
-## 常用注解
+### 常用注解
 
 | 注解 | 作用 |
-|---|---|
+| --- | --- |
 | `@RestController` | 标记处理请求的类，返回值自动序列化为 JSON |
 | `@RequestMapping` | 为类或方法下的接口添加统一路径前缀 |
 | `@RequestParam` | 获取 GET 请求 `?` 后面的查询参数，可接收多个参数 |
 | `@PathVariable` | 获取 URL 路径中 `/` 后面的一段值 |
 | `@RequestBody` | 获取请求体（Body）中的 JSON 数据并映射为对象 |
 | `@CrossOrigin` | 允许跨域请求 |
-| `@Autowired` | 依赖注入 |
+| `@Autowired` | 依赖注入（推荐使用构造器注入） |
+| `@Service` | 标记业务层的类，交给 Spring 容器管理 |
+| `@Component` | 标记通用的组件类，交给 Spring 容器管理 |
+| `@Value` | 读取配置文件中的值，如 `@Value("${jwt.secret-key}")` |
 | `@NotNull` | （`jakarta.validation.constraints`）要求字段不为 `null` |
-| `@NotBlank` | （`jakarta.validation.constraints`）要求字段不为 `null` 且长度大于 0，只能用于字符串 |
+| `@NotBlank` | （`jakarta.validation.constraints`）要求字符串不为 `null`，且去掉首尾空白后长度大于 0，只能用于字符串 |
 | `@Data` | （Lombok）自动生成 getter、setter、构造函数等样板代码 |
-| `@Param` | 用于在 SQL 语句中绑定参数，避免 SQL 注入 |
+| `@Mapper` | （MyBatis）标记 Mapper 接口，MyBatis 会为它生成实现类 |
+| `@Param` | （MyBatis）给 Mapper 方法的参数命名，SQL 中通过 `#{名称}` 引用；防注入靠的是 `#{}` 预编译，而不是 `@Param` |
 | `@Transactional` | 开启事务 |
-| `@Configuration` | 管理配置 |
-| `@Bean` | 配置 |
+| `@Configuration` | 声明配置类 |
+| `@Bean` | 把方法的返回值注册为 Spring 容器管理的 Bean |
+| `@RestControllerAdvice` | 声明全局异常处理类，作用于所有 Controller |
+| `@ExceptionHandler` | 指定方法处理哪一类异常 |
 
-## 专业名词
+### 专业名词
 
-- **DTO（数据传输对象）**——用于层与层之间传递数据的载体，类似 Python 中的 Pydantic 模型。
+- **DTO（数据传输对象）**：用于层与层之间传递数据的载体，类似 Python 中的 Pydantic 模型。
 
----
+### 不同请求方式获取参数
 
-## 不同请求方式获取参数
-
-```java
-// GET —— 使用 ? 传参:/user/get?userId=xxx
+```java title="UserController.java" showLineNumbers {2,8,14,20,26}
+// GET —— 使用 ? 传参：/user/get?userId=xxx
 @GetMapping("/get")
 public String getUser(@RequestParam("userId") Integer id) {
     return "查询到用户ID为：" + id;
 }
 
-// GET —— 使用路径传参:/user/info/1
+// GET —— 使用路径传参：/user/info/1
 @GetMapping("/info/{id}")
 public String getUserInfo(@PathVariable("id") Integer id) {
     return "从路径中取出的用户 ID 是：" + id;
@@ -228,9 +243,9 @@ public String deleteUser(@PathVariable("id") Integer id) {
 }
 ```
 
-**对应的 DTO 类:**
+对应的 DTO 类：
 
-```java
+```java title="UserDto.java" showLineNumbers
 package com.example.springboot_test;
 
 public class UserDto {
@@ -249,15 +264,13 @@ public class UserDto {
 }
 ```
 
----
-
-## 分层架构示例
+### 分层架构示例
 
 标准的 Controller → Service → Mapper 三层结构。
 
-> 📌 **命名规范提醒**：类名必须使用大驼峰命名法（首字母大写），例如 `UserController`、`UserService`。
+**命名规范提醒**：类名应当使用大驼峰命名法（首字母大写），例如 `UserController`、`UserService`。
 
-```java
+```java title="UserController.java" showLineNumbers
 // Controller
 @RestController
 @RequestMapping("/user")
@@ -276,11 +289,10 @@ public class UserController {
 }
 ```
 
-```java
+```java title="UserService.java" showLineNumbers
 // Service
 @Service
-@RequiredArgsConstructor // lombok注解 自动构造生成器
-
+@RequiredArgsConstructor  // Lombok 注解，自动生成构造器
 public class UserService {
 
     private final UserMapper userMapper;
@@ -291,7 +303,7 @@ public class UserService {
 }
 ```
 
-```java
+```java title="UserMapper.java" showLineNumbers
 // Mapper
 @Mapper
 public interface UserMapper {
@@ -299,17 +311,24 @@ public interface UserMapper {
 }
 ```
 
----
+### MyBatis XML 写法
 
-## MyBatis XML 写法
+XML 文件放在 `resources/mapper/` 目录下，同时需要在配置文件中告诉 MyBatis 去哪里找它们，否则会报 `Invalid bound statement (not found)`：
 
-```xml
+```yaml title="application.yml" showLineNumbers
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true  # 数据库的 user_name 自动映射到 Java 的 userName
+```
+
+```xml title="UserMapper.xml" showLineNumbers
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.springboot_test.mapper.UserMapper">
-    <!-- namespace 必填,必须对应目标 Mapper 接口的完整包路径 -->
-    <!-- resultType 必填,要求返回类型(新增，修改，删除不需要返回值);-->
+    <!-- namespace 必填，必须对应目标 Mapper 接口的完整包路径 -->
+    <!-- select 必须指定 resultType 或 resultMap（新增、修改、删除不需要返回值） -->
 
     <!-- 不含参数的查询 -->
     <select id="userIdAll" resultType="Integer">
@@ -335,126 +354,133 @@ public interface UserMapper {
     <delete id="deleteUser">
         delete from user where id = #{id}
     </delete>
-
-    <!-- 动态SQL -->
-
 </mapper>
 ```
-### 处理一对多时
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.example.springboot_test.mapper.UserMapper">
 
+<Callout type="warning" title="#{} 与 ${} 的区别">
+`#{}` 使用预编译参数，可以防止 SQL 注入；`${}` 是直接拼接字符串，只用于表名、排序字段等无法预编译的场景，且必须自己保证内容可信。
+</Callout>
+
+#### 处理一对多时
+
+<Details title="展开查看 resultMap 与两次 SQL 的写法">
+
+`resultMap` 将数据库字段映射进 Java 对象，`collection` 声明 `orders` 字段怎么填充：把数据库的多条记录装进 Java 对象里的 `List` 属性。
+
+```xml title="UserMapper.xml" showLineNumbers {9,10,11}
 <resultMap id="userWithOrdersMap" type="com.example.corelearning.dto.UserDto">
-    <!-- resultmnap 将数据库字段映射进java对象里 -->
     <id property="id" column="id"/>
     <result property="username" column="username"/>
     <result property="age" column="age"/>
 
-    <!-- collection标签:声明orders字段怎么填充，将数据库的多条记录，装进 Java 对象里的 List 属性。 -->
-    <collection property="orders" 将查到的数据赋值给UserDTO的orders中
-                column="id" # 将查询结果的id继续传下去
-                select="com.example.corelearning.mapper.OrderMapper.selectByUserId"> # 调用另外的SQL
-    </collection>
+    <!-- collection：声明 orders 字段怎么填充 -->
+    <!-- column="id"：将查询结果的 id 继续传给下一条 SQL -->
+    <!-- select：调用另外的 SQL（OrderMapper 中的 selectByUserId） -->
+    <collection property="orders"
+                column="id"
+                select="com.example.corelearning.mapper.OrderMapper.selectByUserId"/>
 </resultMap>
-</mapper>
-
 ```
 
-第一次 SQL 查询拿到 ID →
+第一次 SQL 查询拿到 ID：
 
-```xml
+```xml title="UserMapper.xml" showLineNumbers
 <select id="selectUserWithOrders" resultMap="userWithOrdersMap">
     select id, username, age from user where id = #{id}
 </select>
 ```
 
-第二次 SQL 根据查询到的 ID 获取订单表数据，也就是调用 `com.example.corelearning.mapper.OrderMapper.selectByUserId`。
+第二次 SQL 根据查询到的 ID 获取订单表数据，也就是调用 `com.example.corelearning.mapper.OrderMapper.selectByUserId`：
 
-```xml
-# com.example.corelearning.mapper.OrderMapper.selectByUserId
+```xml title="OrderMapper.xml" showLineNumbers
 <select id="selectByUserId" resultType="com.example.corelearning.dto.OrderDto">
     select id, user_id, amount, status, created_at
     from orders
     where user_id = #{userId}
 </select>
-
 ```
----
 
-## 统一返回格式封装
+这种「先查主表、再按 ID 查子表」的写法，查询单个用户时没有问题；一次查询 N 个用户时会额外执行 N 次子查询（N+1 问题），列表场景建议改用 `JOIN` 一次查出，再用 `collection` 的 `ofType` 配合 `resultMap` 映射。
 
-> 📌 **命名规范提醒**：类名应为 `Result`（首字母大写），而不是 `result`。
+</Details>
 
-```java
+### 统一返回格式封装
+
+**命名规范提醒**：类名应为 `Result`（首字母大写），而不是 `result`。
+
+```java title="Result.java" showLineNumbers
 // 基于 Lombok 封装
-    @Data
-    public class Result<T> {
-        private Integer code;
-        private String msg;
-        private T data;
+@Data
+public class Result<T> {
+    private Integer code;
+    private String msg;
+    private T data;
 
-        public static <T> Result<T> success(T data) {
-            Result<T> result = new Result<>();
-            result.setCode(200);
-            result.setMsg("操作成功");
-            result.setData(data);
-            return result;
-        }
-
-        // TODO: 补充失败场景的静态方法,配合全局异常处理器使用
-        public static <T> Result<T> fail(Integer code, String msg) {
-            Result<T> result = new Result<>();
-            result.setCode(code);
-            result.setMsg(msg);
-            return result;
-        }
+    public static <T> Result<T> success(T data) {
+        Result<T> result = new Result<>();
+        result.setCode(200);
+        result.setMsg("操作成功");
+        result.setData(data);
+        return result;
     }
+
+    // 失败场景，配合全局异常处理器使用
+    public static <T> Result<T> fail(Integer code, String msg) {
+        Result<T> result = new Result<>();
+        result.setCode(code);
+        result.setMsg(msg);
+        return result;
+    }
+}
 ```
 
----
+### 接口错误统一处理
 
-## 接口错误统一处理
+#### 通用异常处理
 
-### 通用异常处理
-```java
-@Log4j2 // 日志
+```java title="GlobalExceptionHandler.java" showLineNumbers {7,15,22}
+@Log4j2  // 日志
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-    // Exception.class 会捕获所有异常,包括自定义异常类
+
+    // 兜底处理：没有被更具体的处理器匹配到的异常都会进入这里
+    // （Spring 会优先选择最匹配的处理器，所以下面的自定义异常不会被它抢走）
     @ExceptionHandler(Exception.class)
     public Result<Void> handleException(Exception e) {
+        // 详细信息只写日志，不要把 e.getMessage() 直接返回给前端，避免泄露内部细节
         log.error("服务器内部错误：{}", e.getMessage(), e);
-        return Result.fail(500, "服务器内部错误：" + e.getMessage());
+        return Result.fail(500, "服务器内部错误，请稍后重试");
     }
 
     // 使用自定义业务异常类
     @ExceptionHandler(BusinessException.class)
-    //BusinessException.class 自定义的异常类
-    public Result<Void> BusinessError(BusinessException e){
+    public Result<Void> businessError(BusinessException e) {
         log.warn("业务异常：{}", e.getMessage());
-        return Result.fail(e.getCode(),e.getMessage());
+        return Result.fail(e.getCode(), e.getMessage());
     }
 
+    // MethodArgumentNotValidException.class 会捕获所有参数校验失败的异常
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    //MethodArgumentNotValidException.class 会捕获所有参数校验失败的异常
     public Result<Void> handleValidException(MethodArgumentNotValidException e) {
-        String message = e.getBindingResult().getFieldError().getDefaultMessage();
+        FieldError fieldError = e.getBindingResult().getFieldError();
+        // getFieldError() 可能为 null（例如类级别的校验失败），需要判空
+        String message = fieldError != null ? fieldError.getDefaultMessage() : "参数校验失败";
         log.warn("参数校验失败：{}", message);
         return Result.fail(400, message);
     }
 }
 ```
 
-### 自定义业务异常类
-在业务层使用`throw new BusinessException(code, message);` 会自动抓取到 `@BusinessError` 方法，返回自定义的错误码和错误信息。
-```java
+#### 自定义业务异常类
+
+在业务层使用 `throw new BusinessException(code, message);` 会自动被 `businessError` 方法捕获，返回自定义的错误码和错误信息。
+
+```java title="BusinessException.java" showLineNumbers
 @Getter
 public class BusinessException extends RuntimeException {
-    // RuntimeException.class 是一个运行时异常,不会被编译器捕获
-    private Integer code;
+    // RuntimeException 是运行时异常，编译器不会强制要求捕获或声明
+    private final Integer code;
+
     public BusinessException(Integer code, String message) {
         super(message);
         this.code = code;
@@ -462,21 +488,19 @@ public class BusinessException extends RuntimeException {
 }
 ```
 
-## 分页
+### 分页
 
-```xml
-<!-- pom.xml -->
+```xml title="pom.xml" showLineNumbers
 <dependency>
     <groupId>com.github.pagehelper</groupId>
     <artifactId>pagehelper-spring-boot-starter</artifactId>
     <version>4.1.1</version>
-    <scope>compile</scope>
 </dependency>
 ```
 
-
-```java
-//  构建分页返回result
+```java title="PageResult.java" showLineNumbers
+// 构建分页返回 result
+@Data  // 需要 getter/setter，否则下面的 setXxx 无法编译
 public class PageResult<T> {
     private Integer pageNum;
     private Integer pageSize;
@@ -488,142 +512,142 @@ public class PageResult<T> {
         result.setPageNum(pageInfo.getPageNum());
         result.setPageSize(pageInfo.getPageSize());
         result.setTotal(pageInfo.getTotal());
-        result.setList(pageInfo.getList()); // 返回查询的数据
+        result.setList(pageInfo.getList());  // 返回查询的数据
         return result;
     }
 }
 ```
 
-```java
-// controller
-
+```java title="UserController.java" showLineNumbers
+// Controller
 @GetMapping("/page")
-
 public Result<PageResult<UserDto>> getUserPage(
         @RequestParam(defaultValue = "1") Integer pageNum,
         @RequestParam(defaultValue = "10") Integer pageSize,
-        UserDto user){ // springboot可以自动解包
-    PageInfo<UserDto> pageInfo = userService.getUserPage(pageNum, pageSize, null); // 原PageInfo类
+        UserDto user) {  // Spring MVC 会把查询参数自动绑定到这个对象，作为查询条件
+    PageInfo<UserDto> pageInfo = userService.getUserPage(pageNum, pageSize, user);
     PageResult<UserDto> pageResult = PageResult.of(pageInfo);
     return Result.success(pageResult);
 }
+```
 
-//Service
-
+```java title="UserService.java" showLineNumbers
+// Service
 public PageInfo<UserDto> getUserPage(Integer pageNum, Integer pageSize, UserDto condition) {
+    // startPage 必须紧挨着要分页的那条查询，中间不要插入其他查询
     PageHelper.startPage(pageNum, pageSize);
     List<UserDto> list = userMapper.selectByCondition(condition);
     return new PageInfo<>(list);
 }
 ```
 
-## 登录鉴权
+### 登录鉴权
 
-### spring-security
-```xml
-<!-- pom.xml -->
-<!-- 一旦引入这个依赖,Spring Boot会自动给你的所有接口加上登录保护(访问任何接口都会被重定向到一个默认的登录页面) -->
+#### spring-security
+
+```xml title="pom.xml" showLineNumbers
+<!-- 一旦引入这个依赖，Spring Boot 会自动给你的所有接口加上登录保护
+     （访问任何接口都会被重定向到一个默认的登录页面） -->
 <dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-security</artifactId>
-    <version>4.1.0</version>
-    <scope>compile</scope>
 </dependency>
 ```
 
-```java
+```java title="SecurityConfig.java" showLineNumbers {24,26,29,32,36}
 // com.example.xxx.config
-// SecurityConfig.java
-
 @Configuration
+@RequiredArgsConstructor  // 为 final 字段生成构造器，实现构造器注入
 public class SecurityConfig {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+
     /**
-     * 密码加密器（BCrypt强哈希，单向不可逆）
+     * 密码加密器（BCrypt 强哈希，单向不可逆）
      */
     @Bean
     public PasswordEncoder passwordEncoder() {
-
         return new BCryptPasswordEncoder();
     }
 
     /**
-     * securityFilterChain：所有过滤规，每个请求都会走到这里
-     * HttpSecurity 拦截规则类
+     * securityFilterChain：所有过滤规则，每个请求都会走到这里
+     * HttpSecurity：拦截规则类
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-
         http
-                .csrf(AbstractHttpConfigurer::disable)  // 禁用CSRF保护(前后端分离项目通常不需要这个,用JWT做鉴权)
+                .csrf(AbstractHttpConfigurer::disable)  // 前后端分离项目通常不需要 CSRF，用 JWT 做鉴权
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)  // 新增:告诉Spring Security不使用Session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)  // 告诉 Spring Security 不使用 Session
                 )
                 .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)  // 新增:认证失败时用这个类处理
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)   // 认证失败时用这个类处理
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/user/register", "/user/login").permitAll()  // 这两个接口不需要登录就能访问
-                        .anyRequest().authenticated()  // 其他所有接口都需要登录
-                );
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);// 新增:在校验表单登录之前插入我们的过滤器
-                //UsernamePasswordAuthenticationFilter.class 处理传统表单登录的过滤器
+                        .requestMatchers("/user/register", "/user/login").permitAll()  // 这两个接口不需要登录
+                        .anyRequest().authenticated()                                  // 其他所有接口都需要登录
+                )
+                // 在校验表单登录之前插入我们的过滤器
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 }
-
 ```
 
+```java title="PasswordEncoder 用法" showLineNumbers
+// 加密（注册时保存加密后的结果）
+String hashed = passwordEncoder.encode(rawPassword);
 
-```java
-// 进行加密
-passwordEncoder.encode(密码)
-// 解密
-passwordEncoder.matches(输入的密码，加密的密码)
+// 校验（登录时比较输入的密码和数据库中加密后的密码）
+boolean matched = passwordEncoder.matches(rawPassword, hashed);
 ```
 
+#### jwt
 
-### jwt
-
-```xml
+```xml title="pom.xml" showLineNumbers
 <dependency>
-	<groupId>io.jsonwebtoken</groupId>
-	<artifactId>jjwt-api</artifactId>
-	<version>0.12.6</version>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-api</artifactId>
+    <version>0.12.6</version>
 </dependency>
 <dependency>
-	<groupId>io.jsonwebtoken</groupId>
-	<artifactId>jjwt-impl</artifactId>
-	<version>0.12.6</version>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-impl</artifactId>
+    <version>0.12.6</version>
+    <scope>runtime</scope>
 </dependency>
 <dependency>
-	<groupId>io.jsonwebtoken</groupId>
-	<artifactId>jjwt-jackson</artifactId>
-	<version>0.12.6</version>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-jackson</artifactId>
+    <version>0.12.6</version>
+    <scope>runtime</scope>
 </dependency>
 ```
 
-```java
-
+```java title="JWTUtil.java" showLineNumbers {5,9,14,22,37,55}
 @Component
 public class JWTUtil {
     // 从 application.yml 读取密钥
     @Value("${jwt.secret-key}")
     private String secretKey;
 
-    // 从 application.yml 读取过期时间
+    // 从 application.yml 读取过期时间（毫秒）
     @Value("${jwt.expire-time}")
     private long expireTime;
 
     /**
-     * 加密
+     * 生成签名密钥（HS256 要求密钥不少于 32 字节）
      */
     private SecretKey getKey() {
         return Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
     }
 
-     /**
-     * 生成token逻辑
-     * @Param username
+    /**
+     * 生成 token 逻辑
+     * @param username 用户名
      */
     public String generateToken(String username, String userId, String role) {
         return Jwts.builder()
@@ -637,135 +661,148 @@ public class JWTUtil {
                 .compact();
     }
 
-     /**
-     * 从token解析用户名
+    /**
+     * 解析并校验 token，返回载荷；token 非法或已过期会抛出 JwtException
      */
-    public String getUsernameFromToken(String token) {
-        Claims claims = Jwts.parser()
+    public Claims parseClaims(String token) {
+        return Jwts.parser()
                 .verifyWith(getKey())
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
-        return claims.getSubject();
     }
 
-     /**
-     * 验证token是否有效
+    /**
+     * 从 token 解析用户名
+     */
+    public String getUsernameFromToken(String token) {
+        return parseClaims(token).getSubject();
+    }
+
+    /**
+     * 验证 token 是否有效
      */
     public boolean validateToken(String token) {
         try {
-            Jwts.parser().verifyWith(getKey()).build().parseSignedClaims(token);
+            parseClaims(token);
             return true;
-        } catch (Exception e) {
+        } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
     }
 }
 ```
 
-```java
-/**
-* 对应的取值方法
-*/
-String username = claims.getSubject();        // 取 subject
-Integer userId  = claims.get("userId", Integer.class);  // 取自定义字段
-String role     = claims.get("role", String.class);     // 取自定义字段
+对应的取值方法：
 
+```java title="Claims 取值" showLineNumbers
+Claims claims = jwtUtil.parseClaims(token);
 
-
+String username = claims.getSubject();                    // 取 subject
+String userId   = claims.get("userId", String.class);     // 取自定义字段（生成时存入的是 String，取值类型必须一致）
+String role     = claims.get("role", String.class);       // 取自定义字段
 ```
-```yaml
-# application.yml
 
+```yaml title="application.yml" showLineNumbers
 jwt:
-  secret-key: this-is-a-very-long-secret-key-for-jwt-signing-1234567890abcdef
-  expire-time: 7200000 # ms
-
-
+  # 密钥不要写死在仓库里，生产环境通过环境变量 JWT_SECRET_KEY 注入；冒号后面只是本地开发的默认值
+  secret-key: ${JWT_SECRET_KEY:this-is-a-very-long-secret-key-for-jwt-signing-1234567890abcdef}
+  expire-time: 7200000  # ms
 ```
 
-#### 基于JWT + Spring Security + Redis的过滤器
-```java
+##### 基于 JWT + Spring Security 的过滤器
 
+<Details title="展开查看过滤器与认证失败处理器">
+
+```java title="JwtAuthenticationFilter.java" showLineNumbers {13,16,22,25,32}
 @Component
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    @Autowired
-    private JWTUtil jwtUtil;
+    private final JWTUtil jwtUtil;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                     HttpServletResponse response,
-                                     FilterChain filterChain) throws ServletException, IOException {
+                                    HttpServletResponse response,
+                                    FilterChain filterChain) throws ServletException, IOException {
 
-        // 第一步:从请求头取出Authorization字段
+        // 第一步：从请求头取出 Authorization 字段
         String authHeader = request.getHeader("Authorization");
 
-        // 第二步:检查格式是否是"Bearer xxx",不是的话直接放行(交给后面的规则处理)
+        // 第二步：检查格式是否是 "Bearer xxx"，不是的话直接放行（交给后面的规则处理）
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // 第三步:把"Bearer "这个前缀去掉,拿到真正的令牌内容
+        // 第三步：把 "Bearer " 这个前缀去掉，拿到真正的令牌内容
         String token = authHeader.substring(7);
 
-        // 第四步:校验令牌是否合法
+        // 第四步：校验令牌是否合法
         if (jwtUtil.validateToken(token)) {
             String username = jwtUtil.getUsernameFromToken(token);
 
-            // 第五步:把"这个用户已登录"的信息,存进Spring Security的上下文
+            // 第五步：把「这个用户已登录」的信息存进 Spring Security 的上下文
+            // 这里暂时没有加载权限；需要按角色控制接口时，在此放入 SimpleGrantedAuthority
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(username, null, Collections.emptyList());
             SecurityContextHolder.getContext().setAuthentication(authentication);
         }
 
-        // 继续放行,请求进入下一个环节
+        // 继续放行，请求进入下一个环节
         filterChain.doFilter(request, response);
     }
 }
-
 ```
 
+如果需要支持「退出登录 / 踢人下线」，可以在 `validateToken` 通过之后，再用下文的 `RedisUtil` 检查该 token 是否在黑名单中。
 
-```java
-// 认证失败的过滤器
+```java title="JwtAuthenticationEntryPoint.java" showLineNumbers
+// 认证失败处理器：未登录或令牌无效时，返回 401 和 JSON 提示
 @Component
+@RequiredArgsConstructor
 public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
+
+    private final JsonMapper jsonMapper;  // 注入容器中的实例，不需要每次请求都新建
 
     @Override
     public void commence(HttpServletRequest request,
                          HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
 
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE); //application/json
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);  // application/json
         response.setCharacterEncoding("UTF-8");
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); //401
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);    // 401
 
         Result<Void> result = Result.fail(401, "未登录或令牌已失效，请重新登录");
 
-        JsonMapper jsonMapper = JsonMapper.builder().build();
-        String json = jsonMapper.writeValueAsString(result);
-
-        response.getWriter().write(json);
+        response.getWriter().write(jsonMapper.writeValueAsString(result));
     }
 }
 ```
 
-## Redis
-```xml
+</Details>
+
+### Redis
+
+```xml title="pom.xml" showLineNumbers
 <dependency>
     <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-data-redis</artifactId>
-    <version>4.1.0</version>
-    <scope>compile</scope>
+    <artifactId>spring-boot-starter-data-redis</artifactId>
 </dependency>
-
 ```
 
+```yaml title="application.yml" showLineNumbers
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+```
 
+<Details title="展开查看 RedisUtil 实现与设计说明">
 
-```java
+```java title="RedisUtil.java" showLineNumbers {13,21,32,39}
 @Component
 public class RedisUtil {
 
@@ -776,7 +813,7 @@ public class RedisUtil {
     private JsonMapper jsonMapper;
 
     /**
-     * 存值(带过期时间),自动把对象转成JSON字符串
+     * 存值（带过期时间），自动把对象转成 JSON 字符串
      */
     public void set(String key, Object value, long timeout, TimeUnit unit) {
         String json = jsonMapper.writeValueAsString(value);
@@ -784,7 +821,7 @@ public class RedisUtil {
     }
 
     /**
-     * 取值,自动把JSON字符串转回指定类型的对象
+     * 取值，自动把 JSON 字符串转回指定类型的对象
      */
     public <T> T get(String key, Class<T> clazz) {
         String json = redisTemplate.opsForValue().get(key);
@@ -795,53 +832,54 @@ public class RedisUtil {
     }
 
     /**
-     * 删除某个key
+     * 删除某个 key
      */
     public void delete(String key) {
         redisTemplate.delete(key);
     }
 
     /**
-     * 判断key是否存在
+     * 判断 key 是否存在
      */
     public boolean hasKey(String key) {
         return Boolean.TRUE.equals(redisTemplate.hasKey(key));
     }
 }
-
-"""
-关键点解释:
-
-- set方法多了timeout和unit两个参数——强制要求调用者每次存值时都必须显式指定过期时间(TimeUnit.MINUTES、TimeUnit.HOURS这些),避免"忘记设置过期时间导致缓存永久堆积"这种问题
-- get方法用了泛型<T>——这样这一个方法可以适配任何类型,比如redisUtil.get("user:1", UserDto.class)就能直接拿到一个UserDto对象,不需要针对每种类型单独写一个方法
-- jsonMapper.readValue(json, clazz)——这是Jackson提供的"反序列化"方法,把JSON字符串转换回Java对象
-
-
-
-"""
 ```
 
-## 雪花算法
+关键点解释：
 
-~~~xml
-<!-- pom.xml -->
+| 设计 | 原因 |
+| --- | --- |
+| `set` 方法多了 `timeout` 和 `unit` 两个参数 | 强制要求调用者每次存值时都必须显式指定过期时间（`TimeUnit.MINUTES`、`TimeUnit.HOURS` 这些），避免「忘记设置过期时间导致缓存永久堆积」 |
+| `get` 方法用了泛型 `<T>` | 一个方法可以适配任何类型，比如 `redisUtil.get("user:1", UserDto.class)` 就能直接拿到一个 `UserDto` 对象，不需要针对每种类型单独写方法 |
+| `jsonMapper.readValue(json, clazz)` | Jackson 提供的反序列化方法，把 JSON 字符串转换回 Java 对象 |
+
+</Details>
+
+### 雪花算法
+
+```xml title="pom.xml" showLineNumbers
 <dependency>
     <groupId>cn.hutool</groupId>
     <artifactId>hutool-all</artifactId>
     <version>5.8.47</version>
-    <scope>compile</scope>
 </dependency>
-~~~
+```
 
-~~~java
+```java title="SnowflakeConfig.java" showLineNumbers
 @Configuration
 public class SnowflakeConfig {
 
     @Bean
     public Snowflake snowflake() {
-        return IdUtil.getSnowflake(1, 1);
+        return IdUtil.getSnowflake(1, 1);  // workerId、datacenterId
     }
 }
+```
 
-// snowflake.nextId() 返回id
-~~~
+使用时注入 `Snowflake`，调用 `snowflake.nextId()` 即可拿到 `long` 类型的 id。
+
+<Callout type="tip" title="雪花 ID 返回给前端要转成字符串">
+雪花 ID 通常有 19 位，超出 JavaScript `Number` 能精确表示的范围（约 16 位），直接以数字返回会丢失精度。接口返回时建议序列化成字符串。
+</Callout>

@@ -6,228 +6,298 @@ tags: 'Python,uv,模块化'
 date: '2026-08-10'
 readTime: '8 分钟'
 author: 'Gin'
-IS_SHOW: FALSE
+IS_SHOW: true
 ---
-## 常用操作法
 
-```bash
-uv venv .venv # 新建虚拟环境
-uv venv --python 3.11 .venv # 根据特定版本新建虚拟环境
-uv init my-project # 新建项目
-uv sync # 同步项目依赖
-.venv\Scripts\activate # 激活虚拟环境
-deactivate # 退出虚拟环境
+## 环境与项目管理（uv）
+
+```bash title="uv 常用命令" showLineNumbers
+uv venv .venv                  # 新建虚拟环境
+uv venv --python 3.11 .venv    # 根据特定版本新建虚拟环境
+uv init my-project             # 新建项目
+uv sync                        # 同步项目依赖
+.venv\Scripts\activate         # 激活虚拟环境（Windows）
+deactivate                     # 退出虚拟环境
 ```
-在`.python-version`修改python版本
 
-## Python 基础复习
+在 `.python-version` 中可修改项目使用的 Python 版本。
 
-## enumerate
-用于遍历列表/元组/字符串，获取索引和值
+## 基础语法
+
+### enumerate
+
+用于遍历列表/元组/字符串，同时获取索引和值。
+
 `enumerate(iterable, start=0)`
-iterable: 任何可迭代对象（列表、元组等）
 
-start: 索引起始值，默认为0
+| 参数 | 说明 |
+| --- | --- |
+| `iterable` | 任何可迭代对象（列表、元组等） |
+| `start` | 索引起始值，默认为 `0` |
 
-```python
-fruits = ['苹果', '香蕉', '橙子']
+```python title="enumerate_demo.py" showLineNumbers
+fruits = ["苹果", "香蕉", "橙子"]
 
-for index, fruit in enumerate(fruits,start=1):
+for index, fruit in enumerate(fruits, start=1):
     print(f"索引: {index}, 水果: {fruit}")
-
 ```
 
-## 与或非
-and 与
-or 或
-not 非
-`!=`：检查两个值是否不相等。
-`is not`：判断两个值是否不是同一个对象。
-`not in`：检查一个元素是否不在元组、列表或字典中。
+### 逻辑与比较运算符
 
-## 模块化
-```python
+| 运算符 | 含义 |
+| --- | --- |
+| `and` | 与 |
+| `or` | 或 |
+| `not` | 非 |
+| `!=` | 检查两个值是否不相等 |
+| `is not` | 判断两个值是否不是同一个对象 |
+| `not in` | 检查一个元素是否不在元组、列表或字典中 |
+
+### 模块化
+
+最简单的导入：同目录下 `from a import add`。
+
+```python title="a.py / main.py" showLineNumbers
 # a.py
-def add(a,b):
-    return a+b
+def add(a, b):
+    return a + b
+
 
 # main.py
 from a import add
-add(1,2)
 
+add(1, 2)
 ```
 
-```python
+导入子包中的模块：`src/a.py` 通过包名导入（在项目根目录下运行 `main.py`）。
+
+```python title="src/a.py / main.py" showLineNumbers
 # src/a.py
-src = 1
+value = 1
+
 
 # main.py
-import src.a as src # 或者    from src.a import src
+import src.a as a_module   # 导入整个模块，通过 a_module.value 访问
+from src.a import value    # 或者直接导入变量
 
-a = src
-
+print(a_module.value, value)
 ```
 
-```python
+同目录下直接 `import config`。
+
+```python title="src/mysql/main.py / src/mysql/config.py" showLineNumbers
 # src/mysql/main.py
 import config
+
 data = config.database
 
-# config.py
-database="http://localhost:3306"
+
+# src/mysql/config.py
+database = "mysql://localhost:3306"
 ```
 
-```python
-#src/mysql/main
-import config
+包内相对导入：`from .mysql.main import ...`。被当作包导入的模块，内部也要改用相对导入，否则找不到同级的 `config`。
+
+```python title="src/a.py / src/mysql/main.py" showLineNumbers
+# src/mysql/main.py
+from . import config
 
 data = config.database
+
+
 def connect_to_db():
     return data
 
-# src / a
 
+# src/a.py
 from .mysql.main import connect_to_db
 
+print(connect_to_db())
 ```
 
-## 异常
+<Callout type="warning" title="相对导入只能在包内使用">
+含有相对导入的文件不能直接 `python src/a.py` 运行，会报 `attempted relative import with no known parent package`。需要在项目根目录用 `python -m src.a` 以包的方式运行。
+</Callout>
 
-### try-except
-```python
+### 异常
+
+#### try-except
+
+```python title="try_except.py" showLineNumbers
 try:
-    xxxxx
-except 错误类型:
-    xxxxx
-else   没有异常时:
-    xxxxx
-finally 不管有没有异常都执行
-    xxxxx
+    number = int(input("请输入除数："))
+    result = 10 / number
+except ZeroDivisionError:    # 可以按错误类型分别处理
+    print("除数不能为 0")
+except ValueError as e:      # as e 获取异常对象
+    print(f"输入的不是整数：{e}")
+else:      # 没有异常时执行
+    print(f"结果：{result}")
+finally:   # 不管有没有异常都执行
+    print("计算结束")
 ```
 
-### raise
-主动抛出异常
+#### raise
 
-```python
+主动抛出异常。
+
+```python title="raise_demo.py" showLineNumbers
 raise ValueError("错误")
 ```
-## 数据类型
-### str
-- title() 首字母大写
-### 类型转换
-- str()
-- int()
 
-### dict
+### 数据类型
+
+#### str
+
+- `title()`：每个单词的首字母大写
+
+#### 类型转换
+
+- `str()`
+- `int()`
+
+#### dict
+
 `dict.update()`：向字典中插入或更新键值对。
 
-~~~py
+```python title="dict_demo.py" showLineNumbers
+# 变量名不要用 object、dict、list 等内置名称，否则会遮蔽内置函数
+user: dict[str, int] = {"age": 17}
+
 # 获取字典的某个值
-object:Dict[str,int] = {"age":17}
+user.get("age")         # 17
+user.get("height", 0)   # 不存在时返回默认值 0
+user["age"]             # 不存在时抛 KeyError
 
-object.get("age",{}) 
-object["age"]
-~~~
-
-### tuple
-```python
-tuples = ('a','b')
-## 解包元组
-b, c = tuples
-b # a
-c # b
+# 插入或更新
+user.update({"age": 18, "height": 180})
+print(user)  # {'age': 18, 'height': 180}
 ```
-## file
-~~~py
-with open("my_file.txt","w",encoding="utf-8") as file:
+
+#### tuple
+
+```python title="tuple_demo.py" showLineNumbers
+letters = ("a", "b")
+
+# 解包元组
+first, second = letters
+first   # "a"
+second  # "b"
+```
+
+### file
+
+```python title="file_demo.py" showLineNumbers
+with open("my_file.txt", "w", encoding="utf-8") as file:
     file.write("使用 with 语句写入的内容\n")
     file.write("第二行内容")
-"""
-file.writelines(lines:list[any,any]):写入多条数据
-"""
-~~~
 
-open() 函数的第二个参数决定了写入行为：
+# file.writelines(lines)：一次写入多行（可迭代的字符串序列），不会自动添加换行符
+```
+
+`open()` 的第二个参数决定读写行为：
+
 | 模式 | 说明 | 文件不存在 | 文件存在 |
-| :--- | :--- | :--- | :--- |
+| --- | --- | --- | --- |
+| `'r'` | 读取（默认） | 抛出 `FileNotFoundError` | 从头读取 |
 | `'w'` | 写入（覆盖） | 自动创建 | 覆盖原内容 |
 | `'a'` | 追加 | 自动创建 | 在末尾添加内容 |
 | `'x'` | 独占创建 | 自动创建 | 抛出 `FileExistsError` 异常 |
 
-## typing
-像 TypeScript 一样，为 Python 添加类型标注。
-```python
-def get_full_name(first_name:str, last_name:str)->str:
+### typing（基础）
+
+像 TypeScript 一样为 Python 添加类型标注，详见「常用模块 → typing」。类型标注只给 IDE 和类型检查器使用，运行时不会强制检查。
+
+```python title="typing_demo.py" showLineNumbers
+def get_full_name(first_name: str, last_name: str) -> str:
     full_name = first_name.title() + " " + last_name.title()
     return full_name
 ```
-```python
-# 给 list,dict,tuple，set等添加类型。使用typing
-from typing import List,Dict,Tuple,Set
 
-其中有子类型 则 List[str],Dict[str,str].......
+```python title="typing_generic.py" showLineNumbers
+# 给 list、dict、tuple、set 等添加类型
+# Python 3.9+ 可以直接使用内置类型：list[str]、dict[str, str]、tuple[int, str]、set[int]
+names: list[str] = ["a", "b"]
 
+# 旧写法（兼容 3.8 及以下）需要从 typing 导入：List[str]、Dict[str, str] ……
+from typing import Dict, List, Set, Tuple
 ```
 
-## 其他
-### 1. hasattr
-判断某个对象是否有某个属性
-```python
+### 其他
+
+#### hasattr
+
+判断某个对象是否有某个属性。
+
+```python title="hasattr_demo.py" showLineNumbers
 from dataclasses import dataclass
 
+
 @dataclass
-class toolList:
-    name:str
+class Tool:
+    name: str
 
-msg = toolList('a')
 
-print(hasattr(msg,"n"))
+tool = Tool("a")
+
+print(hasattr(tool, "name"))  # True
+print(hasattr(tool, "n"))     # False
 ```
 
-# 常用模块
+## 常用模块
 
-## Rich
-一个美化输出的模块
+### Rich
+
+一个美化输出的模块。
+
 ```bash
 uv add rich
 ```
 
-
-```python
+```python title="rich_demo.py" showLineNumbers
 from rich.console import Console
-console = Console() #实例化
-console.print("这是一条信息", style="bold blue") # 加粗 颜色
-console.print("这是一条消息", style="#00ff00") # 十六进制
-console.print("这是一条消息", style="rgb(0, 255, 0)") # rgb
-console.print("这是一条消息", style="on rgb(0, 255, 0)") # 背景颜色
+
+console = Console()  # 实例化
+console.print("这是一条信息", style="bold blue")        # 加粗 + 颜色
+console.print("这是一条消息", style="rgb(0, 255, 0)")   # RGB
+console.print("这是一条消息", style="on rgb(0, 255, 0)")  # 背景颜色
 
 console.print(
-    style css
-    justify 对齐方式
+    "对齐示例",
+    style="bold red",    # Rich 样式字符串，可以组合多个样式（不是 CSS）
+    justify="center",    # 对齐方式：left / center / right / full
 )
 ```
 
-## typing
-标注类型
-```python
+### typing
+
+标注类型。
+
+```python title="typing_advanced.py" showLineNumbers
 from typing import Annotated, Literal, Optional, Union
 
-Union[str, int]  # 相当于 TypeScript 的联合类型
-Annotated[str, "说明"]  # 为类型附加额外说明
-Literal["a", "b"]  # 限制变量只能取指定值
-Optional[str]  # 等价于 str | None
+id_value: Union[str, int] = 1             # 相当于 TypeScript 的联合类型，3.10+ 可写成 str | int
+nickname: Optional[str] = None            # 等价于 str | None
+mode: Literal["a", "b"] = "a"             # 限制变量只能取指定值（由类型检查器检查）
+username: Annotated[str, "说明"] = "gin"  # 为类型附加额外说明（Pydantic、FastAPI 会读取）
 ```
 
-## Pydantic
-用于数据校验。
-```python
-from pydantic import BaseModel, EmailStr, Field, SecretStr, field_validator
+### Pydantic
+
+用于数据校验。`EmailStr` 依赖 `email-validator`，需要一并安装。
+
+```bash
+uv add "pydantic[email]"
+```
+
+```python title="pydantic_demo.py" showLineNumbers {10,11,12,13,15}
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 # BaseModel 类似 TypeScript 的 interface
 # Field 用于声明数值范围、字符串正则等校验规则
-# field_validator 用于校验单个字段
-# EmailStr 校验邮箱地址，SecretStr 保护敏感字段
-# e.g.:
+# field_validator 用于自定义校验单个字段
+# EmailStr 校验邮箱地址
+
 
 class User(BaseModel):
     username: str = Field(min_length=2, max_length=20, description="用户名")
@@ -235,200 +305,261 @@ class User(BaseModel):
     age: int = Field(ge=0, le=150, description="年龄")
     password: str = Field(min_length=6, description="密码")
 
-
-"""
-min_length: 最小长度
-max_length: 最大长度
-ge:大于等于
-le:小于等于
-gt:大于
-lt:小于
-"""
+    @field_validator("username")
+    @classmethod
+    def username_must_not_contain_space(cls, value: str) -> str:
+        if " " in value:
+            raise ValueError("用户名不能包含空格")
+        return value
 ```
 
+`Field` 常用约束：
 
-## env
+| 参数 | 含义 |
+| --- | --- |
+| `min_length` | 最小长度 |
+| `max_length` | 最大长度 |
+| `ge` | 大于等于 |
+| `le` | 小于等于 |
+| `gt` | 大于 |
+| `lt` | 小于 |
+| `pattern` | 字符串需要匹配的正则 |
 
-```python
-from dotenv import load_dotenv
+敏感字段（如密码）可以使用 `SecretStr`：打印和序列化时会显示为 `**********`，需要真实值时调用 `.get_secret_value()`。
+
+### env
+
+读取 `.env` 需要先安装 `python-dotenv`：
+
+```bash
+uv add python-dotenv
+```
+
+```python title="env_demo.py" showLineNumbers
 import os
 
-# 加载.env文件
+from dotenv import load_dotenv
+
+# 加载 .env 文件
 load_dotenv()
 
-# 读取环境变量
-database_url = os.getenv('DB_HOST')
-api_key = os.getenv('DB_PORT')
-
+# 读取环境变量（os.getenv 读到的都是字符串，不存在时返回 None）
+db_host = os.getenv("DB_HOST", "127.0.0.1")
+db_port = int(os.getenv("DB_PORT", "3306"))
 ```
 
-## yaml
+### yaml
 
-~~~yaml
+读取 YAML 需要先安装 `pyyaml`：
+
+```bash
+uv add pyyaml
+```
+
+```yaml title="keywords.yaml" showLineNumbers
 keywords:
-    - 解脱者
+  - 解脱者
 
 name:
-    - 塞拉斯
-~~~
+  - 塞拉斯
+```
 
-~~~py
+```python title="yaml_demo.py" showLineNumbers {6,9}
 from pathlib import Path
+
 import yaml
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent # 得到项目根目录
+# 当前文件位于「项目根目录/子目录」下时，向上两级即项目根目录
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
 def get_yaml(filename: str = "keywords.yaml") -> dict:
     config_path = PROJECT_ROOT / filename
     with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
-getyaml() # {'keywords': ['解脱者'], 'name': ['塞拉斯']}
 
+print(get_yaml())  # {'keywords': ['解脱者'], 'name': ['塞拉斯']}
+```
 
-~~~
-
-## logging
+### logging
 
 `logging` 是 Python 标准库，无需额外安装。
 
-```python
+```python title="logging_demo.py" showLineNumbers
 import logging
+
 logging.basicConfig(
     # 日志级别：DEBUG < INFO < WARNING < ERROR < CRITICAL
-    # 设置DEBUG就能看到所有级别的日志
+    # 设置 DEBUG 就能看到所有级别的日志
     level=logging.DEBUG,
 
     # 日志格式
-    format='%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
 
     # 时间格式
     datefmt="%Y-%m-%d %H:%M:%S",
 
     # 输出到文件，不设置默认输出到控制台
-    filename='app.log',
+    filename="app.log",
 
-    # 文件写入模式 a=追加 w=覆盖
-    filemode='a',
+    # 文件写入模式 a=追加 w=覆盖（仅在设置了 filename 时可用）
+    filemode="a",
 
-    # 编码
-    encoding='utf-8'
+    # 编码（仅在设置了 filename 时可用，否则会抛出 ValueError）
+    encoding="utf-8",
 )
-"""
-format = (
-    '%(asctime)s'      # 时间 2024-01-01 12:00:00
-    '%(levelname)s'    # 级别 DEBUG INFO WARNING ERROR
-    '%(filename)s'     # 文件名 main.py
-    '%(lineno)d'       # 行号 42
-    '%(funcName)s'     # 函数名 login
-    '%(name)s'         # logger名称
-    '%(message)s'      # 日志内容
-)
-
-"""
 ```
 
+`basicConfig` 只在 root logger 还没有 handler 时生效，重复调用不会覆盖已有配置，需要强制重置时加上 `force=True`。
 
-## json
-~~~py
+`format` 常用占位符：
+
+| 占位符 | 含义 | 示例 |
+| --- | --- | --- |
+| `%(asctime)s` | 时间 | `2024-01-01 12:00:00` |
+| `%(levelname)s` | 级别 | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
+| `%(filename)s` | 文件名 | `main.py` |
+| `%(lineno)d` | 行号 | `42` |
+| `%(funcName)s` | 函数名 | `login` |
+| `%(name)s` | logger 名称 | `root` |
+| `%(message)s` | 日志内容 | 自定义 |
+
+### json
+
+```python title="json_demo.py" showLineNumbers {11,14}
 import json
+
 data = {
     "name": "张三",
     "age": 25,
     "hobbies": ["读书", "游泳"],
-    "is_active": True
+    "is_active": True,  # 序列化后变成 JSON 的 true
 }
-# 序列化 python dict -> json
-json_str = json.dumps(data,indent=2)
+
+# 序列化 python dict -> json（ensure_ascii=False 才会保留中文，否则会变成 \uXXXX）
+json_str = json.dumps(data, indent=2, ensure_ascii=False)
 
 # 反序列化 json -> python dict
-data = json.loads(json_str)
+parsed = json.loads(json_str)
+```
 
-~~~
-# 常用装饰器
+## 常用装饰器
 
-## @property
-将方法变成属性，只读
+### @property
 
-```python
-# 这是普通方法，使用时需要加括号
+将方法变成属性，默认只读。
+
+```python title="property_demo.py" showLineNumbers
+from datetime import datetime
+
+
+class Person:
+    def __init__(self, birth_year: int):
+        self.birth_year = birth_year
+
+    def get_age(self) -> int:  # 普通方法，使用时需要加括号
+        return datetime.now().year - self.birth_year
+
+    @property
+    def age(self) -> int:      # 加了 @property 后，方法变成属性
+        return datetime.now().year - self.birth_year
+
+
+person = Person(2000)
 person.get_age()  # 调用方法
-
-# 加了@property后，方法变成属性
-person.age  # 像访问属性一样访问，不加括号
+person.age        # 像访问属性一样访问，不加括号
 ```
 
+### @dataclass
 
-## @dataclass
-自动生成`__init__`,  `__repr__` , `__eq__`等方法
-```python
-from dataclasses import dataclass
+自动生成 `__init__`、`__repr__`、`__eq__` 等方法。
+
+```python title="dataclass_demo.py" showLineNumbers
+from dataclasses import dataclass, field
+
+
 @dataclass
-class toolList:
-    name:str
-    def get_display_name(self, age):
-        obj = {
-            "self":self,
-            "age":age
-        }
-        return obj
+class Tool:
+    name: str
+    tags: list[str] = field(default_factory=list)  # 可变默认值必须用 default_factory
 
-item = toolList('join')
+    def get_display_name(self, prefix: str) -> str:
+        return f"{prefix}-{self.name}"
 
+
+item = Tool("join")
+print(item)                     # Tool(name='join', tags=[])
+print(item == Tool("join"))     # True，__eq__ 自动按字段比较
+print(item.get_display_name("tool"))  # tool-join
 ```
-## '*args'与'**kwargs'
-如果处理数量不确定的同类型参数,使用`*` 返回元组
-~~~python
+
+### `*args` 与 `**kwargs`
+
+处理数量不确定的同类型参数时使用 `*`，参数会被收集成元组。
+
+```python title="args_demo.py" showLineNumbers
 def concat(*strings):
     result = ""
-    for str in strings:
-        result +=str
+    for s in strings:  # 不要把循环变量命名为 str，会遮蔽内置的 str()
+        result += s
     return result
-~~~
+```
 
-如果处理数量不确定的字典，使用`**` 返回字典
-~~~python
-def requests_send(url,**requestOptions):
-    timeout = requestOptions.get("timeout")
-    method = requestOptions.get("methods")
-    header = requestOptions.get("header")
-    return f"url={url},timeout:{timeout},method:{method},header:{header}"
-~~~
+处理数量不确定的关键字参数时使用 `**`，参数会被收集成字典。
 
+```python title="kwargs_demo.py" showLineNumbers
+def requests_send(url, **request_options):
+    timeout = request_options.get("timeout", 10)
+    method = request_options.get("method", "GET")
+    headers = request_options.get("headers", {})
+    return f"url={url}, timeout={timeout}, method={method}, headers={headers}"
+```
 
-## 自定义装饰器
-装饰器本质上就是一个接收函数、返回函数的高阶函数，用来在不修改原函数代码的前提下，给它"包"上一层额外的功能。
-~~~py
+### 自定义装饰器
+
+装饰器本质上就是一个接收函数、返回函数的高阶函数，用来在不修改原函数代码的前提下，给它「包」上一层额外的功能。下面是最简写法，实际使用时建议加上 `functools.wraps` 保留原函数的名称和文档（见下方「有参数的装饰器」）。
+
+```python title="decorator_demo.py" showLineNumbers {8}
 def log(func):
     def wrapper(*args, **kwargs):
         print(f"调用参数: args={args}, kwargs={kwargs}")
         return func(*args, **kwargs)
     return wrapper
 
-@log # 相当于create_user = log(create_user)
-def create_user(name, age, city='Beijing', vip=False):
+
+@log  # 相当于 create_user = log(create_user)
+def create_user(name, age, city="Beijing", vip=False):
     print(f"{name}, {age}, {city}, VIP={vip}")
 
-create_user('job', 18, city='Shanghai', vip=True) # 调用参数: args=('job', 18), kwargs={'city': 'Shanghai', 'vip': True}
 
-~~~
+create_user("job", 18, city="Shanghai", vip=True)
+# 调用参数: args=('job', 18), kwargs={'city': 'Shanghai', 'vip': True}
+```
+
 <Details title="有参数的装饰器">
-~~~py
+
+```python title="decorator_with_args.py" showLineNumbers {4,5,6}
 from functools import wraps
 
-def my_decorator(**kwargs):        # 第1层：用**kwargs收集任意关键字参数
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kw):
+
+def my_decorator(**kwargs):        # 第 1 层：用 **kwargs 收集任意关键字参数
+    def decorator(func):           # 第 2 层：接收被装饰的函数
+        @wraps(func)               # 保留原函数的 __name__、__doc__ 等信息
+        def wrapper(*args, **kw):  # 第 3 层：真正执行的包装函数
             print(f"装饰器配置: {kwargs}")
             return func(*args, **kw)
         return wrapper
     return decorator
 
+
 @my_decorator(times=3, delay=2, name="测试")
 def risky_function():
     return "执行成功"
 
+
 risky_function()
 # 装饰器配置: {'times': 3, 'delay': 2, 'name': '测试'}
-~~~
+```
+
 </Details>

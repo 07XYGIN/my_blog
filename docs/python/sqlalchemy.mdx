@@ -6,88 +6,131 @@ tags: 'SQLAlchemy,ORM,PostgreSQL'
 date: '2026-08-06'
 readTime: '13 分钟'
 author: 'Gin'
-IS_SHOW: FALSE
+IS_SHOW: true
 ---
-## SQLAlchemy
 
 ## 安装
 
 ```bash
-uv add sqlalchemy pgvector psycopg2-binary
+# asyncpg 是异步 PostgreSQL 驱动，与下面 postgresql+asyncpg 的连接串对应
+uv add sqlalchemy asyncpg pgvector
+
+# psycopg2-binary 是同步驱动，只有同步代码或 Alembic 迁移才需要
+# uv add psycopg2-binary
 ```
 
 ## PostgreSQL 连接
 
-```python
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.orm import DeclarativeBase
-from .config import HOST, USER, PORT, PASSWORD
+连接部分分为四块：**引擎**、**会话工厂**、**声明式基类**、**依赖注入函数**。
 
-PG_DATABASE_URL = f'postgresql+asyncpg://{USER}:{PASSWORD}@{HOST}:{PORT}/{USER}'
+### 创建异步引擎
 
-"""
-create_async_engine 创建实例
-async_sessionmaker 异步会话工厂，用于创建数据库会话
-AsyncSession 异步数据库会话类
-DeclarativeBase ORM 声明式基类，用于定义数据模型
+```python title="db/engine.py" showLineNumbers
+from sqlalchemy import URL
+from sqlalchemy.ext.asyncio import create_async_engine
 
-"""
+from .config import DB_NAME, HOST, PASSWORD, PORT, USER
 
-SessionLocal = async_sessionmaker(
-    bind=engine,               # 绑定到之前创建的异步引擎
-    class_=AsyncSession,       # 指定使用异步会话类
-    expire_on_commit=False     # 重要设置！
+# URL.create 会自动处理密码中的特殊字符（@ : / 等），比手写 f-string 拼接更安全
+PG_DATABASE_URL = URL.create(
+    "postgresql+asyncpg",
+    username=USER,
+    password=PASSWORD,
+    host=HOST,
+    port=PORT,
+    database=DB_NAME,  # 库名使用单独的配置，不要和用户名混用
 )
-"""
-expire_on_commit=False 的含义：
-默认情况（True）：事务提交后，所有对象的属性都会过期，下次访问时需要重新从数据库加载
 
-设为 False：提交后对象保持"新鲜"，可以直接访问其属性
+# create_async_engine 创建异步引擎实例
+engine = create_async_engine(PG_DATABASE_URL, pool_pre_ping=True)
+```
 
-"""
+### 会话工厂与声明式基类
+
+```python title="db/session.py" showLineNumbers {8,11,16}
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import DeclarativeBase
+
+from .engine import engine
+
+# async_sessionmaker 异步会话工厂，用于创建数据库会话
+# AsyncSession 异步数据库会话类
+SessionLocal = async_sessionmaker(
+    bind=engine,            # 绑定到之前创建的异步引擎
+    class_=AsyncSession,    # 指定使用异步会话类
+    expire_on_commit=False, # 提交后对象保持"新鲜"，可直接访问属性
+)
+
+
+# DeclarativeBase ORM 声明式基类，所有数据模型都继承自它
 class Base(DeclarativeBase):
     pass
-"""
+```
 
-#所有数据模型都继承自这个基类
+`expire_on_commit` 的行为差异：
 
-"""
+| 取值 | 事务提交后 | 适用场景 |
+| --- | --- | --- |
+| `True`（默认） | 对象属性过期，下次访问需重新查库 | 需要严格一致性的场景 |
+| `False`（推荐） | 对象属性保持可用 | Web 接口返回对象、避免额外查询 |
 
-# 依赖注入函数
-async def get_db():
+<Callout type="note" title="异步下不要依赖隐式懒加载">
+`AsyncSession` 中访问尚未加载的属性或关系，会因为触发隐式 IO 而抛出 `MissingGreenlet`。`expire_on_commit=False` 解决的是提交后属性过期的问题；关系字段需要在定义时用 `lazy="selectin"`，或在查询时用 `selectinload` / `joinedload` 主动加载。
+</Callout>
+
+### 依赖注入函数
+
+```python title="db/deps.py" showLineNumbers
+from collections.abc import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .session import SessionLocal
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with SessionLocal() as session:
         yield session
 ```
 
 ## 定义实体类
 
-```python
-# ==================== 导入部分 ====================
+### 导入部分
+
+```python title="models/girlfriend_config.py" showLineNumbers
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 # SQLAlchemy 数据类型
 from sqlalchemy import (
-    TEXT,           # 长文本
-    TIMESTAMP,      # 时间戳
-    Boolean,        # 布尔值
-    String,         # 字符串
-    Integer,        # 整数
-    BigInteger,     # 大整数
-    ForeignKey      # 外键
+    TEXT,        # 长文本
+    TIMESTAMP,   # 时间戳
+    Boolean,     # 布尔值
+    String,      # 字符串
+    Integer,     # 整数
+    BigInteger,  # 大整数
+    ForeignKey,  # 外键
 )
 
 # ORM 核心
 from sqlalchemy.orm import (
-    Mapped,         # 类型注解
-    mapped_column,  # 列定义
-    relationship    # 表关系
+    Mapped,        # 类型注解
+    mapped_column, # 列定义
+    relationship,  # 表关系
 )
 
 # SQL 函数
 from sqlalchemy.sql import func  # 数据库函数，如 NOW()
 
-# ==================== 实体类定义 ====================
+from db.session import Base
+
+if TYPE_CHECKING:
+    from models.user import User  # 仅用于类型标注，避免循环导入
+```
+
+### 实体类定义
+
+```python title="models/girlfriend_config.py" showLineNumbers {8,18,26,35,43,50,58,77}
 class GirlfriendConfig(Base):
     """
     女友配置实体类
@@ -99,78 +142,74 @@ class GirlfriendConfig(Base):
 
     # 2. 表级参数（可选）
     __table_args__ = {
-        'comment': '用户女友配置表',      # 表注释
-        'mysql_charset': 'utf8mb4',      # MySQL 字符集
-        # 'extend_existing': True         # 如果表已存在，扩展它
+        "comment": "用户女友配置表",   # 表注释
     }
 
     # ========== 字段定义 ==========
 
     # 3. 主键字段
     id: Mapped[int] = mapped_column(
-        Integer,                    # 数据类型：整数
-        primary_key=True,           # ✅ 这是主键
-        autoincrement=True,         # ✅ 自动递增（1,2,3...）
-        comment="配置ID"             # ✅ 字段注释
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+        comment="配置ID",
     )
 
     # 4. 外键字段（关联用户表）
     user_id: Mapped[int] = mapped_column(
-        BigInteger,                 # 数据类型：大整数（适合用户ID）
-        ForeignKey("users.id", ondelete="CASCADE"),  # ✅ 外键，删除时级联
-        nullable=False,             # ✅ 不允许为NULL
-        index=True,                 # ✅ 创建索引（提升查询速度）
-        comment="关联的用户ID"
+        BigInteger,                                  # 类型要和 users.id 保持一致
+        ForeignKey("users.id", ondelete="CASCADE"),  # 删除时级联
+        nullable=False,
+        index=True,                                  # 创建索引，提升查询速度
+        comment="关联的用户ID",
     )
 
     # 5. 字符串字段
     nickname: Mapped[str] = mapped_column(
-        String(50),                 # ✅ 最大50字符的字符串
-        nullable=False,             # ✅ 必填字段
-        default="默认昵称",          # ✅ Python默认值（应用层）
-        comment="女友昵称"
+        String(50),
+        nullable=False,
+        default="默认昵称",  # Python 层默认值（应用层）
+        comment="女友昵称",
     )
 
     # 6. 长文本字段
     personality: Mapped[Optional[str]] = mapped_column(
-        # Optional[str] 表示这个字段可以是 str 或 None
-        TEXT,                       # ✅ 长文本类型
-        nullable=True,              # ✅ 允许为NULL
-        comment="性格描述，支持长文本"
+        TEXT,
+        nullable=True,
+        comment="性格描述，支持长文本",
     )
 
     # 7. 时间字段 - 创建时间
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True),   # ✅ 带时区的时间戳
-        server_default=func.now(),  # ✅ 数据库默认值（插入时自动设置）
-        nullable=False,             # ✅ 不允许为NULL
-        comment="创建时间"
+        TIMESTAMP(timezone=True),
+        server_default=func.now(),  # 数据库默认值，插入时自动设置
+        nullable=False,
+        comment="创建时间",
     )
 
     # 8. 时间字段 - 更新时间
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         server_default=func.now(),
-        onupdate=func.now(),        # ✅ 更新时自动设置为当前时间
+        onupdate=func.now(),  # 更新时自动设置为当前时间
         nullable=False,
-        comment="最后更新时间"
+        comment="最后更新时间",
     )
 
     # 9. 布尔字段
     is_active: Mapped[bool] = mapped_column(
-        Boolean,                    # ✅ 布尔类型
-        default=True,               # ✅ 默认值为True
+        Boolean,
+        default=True,
         nullable=False,
-        comment="是否激活（True=激活，False=禁用）"
+        comment="是否激活（True=激活，False=禁用）",
     )
 
     # ========== 关系定义 ==========
 
-    # 10. 定义关联关系（如果有关联表）
-    # back_populates 表示双向关系
+    # 10. 定义关联关系
     user: Mapped["User"] = relationship(
-        back_populates="girlfriend_configs",  # ✅ User类中对应的属性名
-        lazy="select"                         # ✅ 加载策略
+        back_populates="girlfriend_configs",  # User 类中对应的属性名
+        lazy="selectin",                      # 异步下用 selectin，不要用默认的 select 懒加载
     )
 
     # ========== 特殊方法 ==========
@@ -180,18 +219,17 @@ class GirlfriendConfig(Base):
         return f"<GirlfriendConfig(id={self.id}, nickname='{self.nickname}')>"
 
     def to_dict(self):
-        """转换为字典，用于API响应"""
+        """转换为字典，用于 API 响应"""
         return {
             "id": self.id,
             "nickname": self.nickname,
             "personality": self.personality,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "is_active": self.is_active
+            "is_active": self.is_active,
         }
 ```
 
-### 常用数据类型速查表
-
+### 常用数据类型速查
 
 | Python 类型 | SQLAlchemy 类型 | 数据库类型 | 说明 |
 | --- | --- | --- | --- |
@@ -204,28 +242,26 @@ class GirlfriendConfig(Base):
 | `datetime` | `TIMESTAMP()` | TIMESTAMP | 时间戳 |
 | `float` | `Float()` | FLOAT | 浮点数 |
 | `Decimal` | `Numeric(10,2)` | DECIMAL(10,2) | 精确小数 |
-| `bytes` | `LargeBinary()` | BLOB | 二进制数据 |
+| `bytes` | `LargeBinary()` | BLOB（PostgreSQL 中为 BYTEA） | 二进制数据 |
 
----
-
-### 📚 扩展表格：更多常用类型
+### 扩展类型
 
 | Python 类型 | SQLAlchemy 类型 | 数据库类型 | 示例 |
 | --- | --- | --- | --- |
 | `date` | `Date()` | DATE | `2023-12-25` |
 | `time` | `Time()` | TIME | `14:30:00` |
 | `timedelta` | `Interval()` | INTERVAL | 时间间隔 |
-| `list` | `ARRAY(String)` | ARRAY | 字符串数组 |
+| `list` | `ARRAY(String)` | ARRAY（PostgreSQL 等少数数据库支持） | 字符串数组 |
 | `dict` | `JSON()` | JSON | JSON 数据 |
 | `uuid.UUID` | `UUID()` | UUID | UUID 类型 |
 | `enum.Enum` | `Enum()` | ENUM | 枚举类型 |
 | `str` | `CHAR(10)` | CHAR(10) | 定长字符串 |
-| `str` | `VARCHAR(100)` | VARCHAR(100) | 变长字符串 |
+| `str` | `VARCHAR(100)` | VARCHAR(100) | 变长字符串（与 `String(100)` 等价） |
 | `int` | `SmallInteger()` | SMALLINT | 小整数 |
 
-### 🔧 常见配置选项
+### 常见配置选项
 
-| mapped_column() 参数 | 适用类型 | 示例 | 效果 |
+| `mapped_column()` 参数 | 适用类型 | 示例 | 效果 |
 | --- | --- | --- | --- |
 | `primary_key=True` | 所有类型 | `mapped_column(primary_key=True)` | 设置为主键 |
 | `autoincrement=True` | Integer/BigInteger | `mapped_column(autoincrement=True)` | 自动递增 |
@@ -235,99 +271,112 @@ class GirlfriendConfig(Base):
 | `default=值` | 所有类型 | `mapped_column(default="默认")` | Python 默认值 |
 | `server_default=值` | 所有类型 | `server_default=func.now()` | 数据库默认值 |
 | `onupdate=值` | DateTime/TIMESTAMP | `onupdate=func.now()` | 更新时自动设置 |
-| `ForeignKey()` | 所有类型 | `mapped_column(父表.id)` | 设置为外键 |
+| `ForeignKey()` | 所有类型 | `mapped_column(ForeignKey("users.id"))` | 设置为外键 |
 
-## 流程
+## 编写接口的流程
 
+写接口时按下面六步推进：
 
+| 步骤 | 内容 |
+| --- | --- |
+| 1 | 定义传参和数据库会话 |
+| 2 | 处理边界条件 |
+| 3 | 处理逻辑（可计算部分） |
+| 4 | 定义 SQL |
+| 5 | 提交并执行 SQL |
+| 6 | 根据 SQL 返回内容定义接口返回值 |
 
-写接口时需要考虑
-
-- 传参和数据库会话
-- 边界条件
-- 处理逻辑（可计算部分）
-- 定义 SQL
-- 提交并执行 SQL
-- 根据 SQL 返回内容定义接口返回值
-
-```python
-@router.get('/info',response_model=response_success,summary='获取用户信息',tags=['角色信息'])
-# step1. 定义传参和数据库会话
-async def get_user_info(db: AsyncSession = Depends(get_db),code:Optional[str] = Header(None)):
-    # step 2. 定义边缘条件
+```python title="api/user.py" showLineNumbers {3,4,13,16}
+@router.get("/info", response_model=Result[dict], summary="获取用户信息", tags=["角色信息"])
+async def get_user_info(
+    db: AsyncSession = Depends(get_db),      # step 1. 数据库会话
+    code: Optional[str] = Header(None),      # step 1. 传参
+):
+    # step 2. 边界条件
     if code is None:
-        raise UnicornException(name="用户不存在")
-    user = select(User.create_at,User.id,User.user_name).where(User.code == code) # step 4.定义sql
-    result = await db.execute(user)# step 5. 提交并执行sql
-    """
-	db.execute:提交sql语句
-	db.commit:提交事务(只有增删改需要)
-    db.add(Object): 只有新增的sql用
-    db.add_all(List(object)) 批量新增
-    db.delete()： 删除
-    """
-    row = result.one_or_none() #根据sql返回内容定义接口返回值
-    """
-    result 是数据库执行 SQL 后返回的结果容器。
+        raise ParameterException("用户不存在", code=404)
 
-    result.rowcount  返回 SQL 影响的行数（删除或修改）。
+    # step 3. 处理逻辑（本例没有需要计算的部分）
 
-    ==========查询==========
-	result.one_or_none()     # 取单行，不存在返回 None，多行则报错；适合查询可能不存在的用户
-		result = await db.execute(select(User.psd, User.code).where(...))  # 查询多列
-	result.scalar_one_or_none() # 取单行，不存在返回 None，多行则报错；自动解包为对象
-		result = await db.execute(select(User).where(User.id == userid)) # 查询单列
-	下面只可以单列
-	result.scalar()
-	result.scalars().all()
-	下面单列多列都可以
-	result.one()             # 取单行，不存在直接报错 场景：查当前登录用户信息，理论上一定存在
-	result.first()           # 取第一行，不存在返回None
-	result.all()             # 取所有行，返回列表
-	result.scalar()          # 取第一行第一列的值
-	result.scalars().all()   # 只查一列时，返回扁平列表 [1, 2, 3]
-	result.mappings().all()  # 返回字典格式 [{'id':1, 'name':'张三'}]
-    """
+    # step 4. 定义 SQL（变量名用 stmt，不要和实体变量混淆）
+    stmt = select(User.created_at, User.id, User.user_name).where(User.code == code)
+
+    # step 5. 提交并执行 SQL
+    result = await db.execute(stmt)
+
+    # step 6. 根据 SQL 返回内容定义接口返回值
+    row = result.one_or_none()
     if row is None:
-        raise UnicornException(name="用户不存在")
-    createTime,userId,username = row
-    success = {
-        "createTime":createTime,
-        "userId":userId,
-        "userName":username
-    }
-    response_success.data = success # 返回结果
-    return response_success
+        raise ParameterException("用户不存在", code=404)
+
+    created_at, user_id, user_name = row
+    # 每次请求都新建响应对象；不要把响应对象定义成全局变量再修改，并发请求会互相覆盖
+    return Result.ok(data={
+        "createTime": created_at,
+        "userId": user_id,
+        "userName": user_name,
+    })
 ```
 
+`Result` 和 `ParameterException` 的定义见 FastAPI 文档中的「统一响应格式」与「集中异常处理」。
 
+常用的会话操作（注意哪些需要 `await`）：
 
-## 构建sql语句
+```python title="session_methods.py" showLineNumbers
+await db.execute(stmt)       # 提交 SQL 语句并拿到结果
+await db.commit()            # 提交事务（只有增删改需要）
+db.add(obj)                  # 新增一个对象（同步方法，不需要 await）
+db.add_all([obj1, obj2])     # 批量新增（同步方法）
+await db.delete(obj)         # 删除对象（异步方法，需要 await）
+```
 
-```python
+### Result 常用方法
+
+`result` 是数据库执行 SQL 后返回的结果容器，`result.rowcount` 返回 SQL 影响的行数（删除或修改）。
+
+| 方法 | 返回 | 说明 | 适用查询 |
+| --- | --- | --- | --- |
+| `result.one_or_none()` | 单行或 `None` | 不存在返回 `None`，多行报错 | 多列，如 `select(User.psd, User.code)` |
+| `result.scalar_one_or_none()` | 单值或 `None` | 不存在返回 `None`，多行报错，自动解包 | 单列或单个实体，如 `select(User).where(User.id == userid)` |
+| `result.one()` | 单行 | 不存在直接报错 | 多列；查当前登录用户等理论上一定存在的场景 |
+| `result.first()` | 第一行或 `None` | 不存在返回 `None` | 多列 |
+| `result.all()` | 列表 | 取所有行 | 多列 |
+| `result.scalar()` | 单值 | 取第一行第一列 | 单列 |
+| `result.scalars().all()` | 扁平列表 | 只查一列时返回 `[1, 2, 3]` | 单列 |
+| `result.mappings().all()` | 字典列表 | 返回 `[{'id':1, 'name':'张三'}]` | 多列 |
+
+## 构建 SQL 语句
+
+```python title="query.py" showLineNumbers
 from sqlalchemy import (
-    select,      # 查询 ✅
-    insert,      # 插入
-    update,      # 更新
-    delete,      # 删除
-    text,        # 原生SQL
-    func,        # SQL函数
-    case,        # CASE语句
-    cast,        # 类型转换
-    and_, or_, not_,  # 逻辑操作
-    union, union_all, intersect, except_  # 集合操作
+    select,       # 查询
+    insert,       # 插入
+    update,       # 更新
+    delete,       # 删除
+    text,         # 原生 SQL
+    func,         # SQL 函数
+    case,         # CASE 语句
+    cast,         # 类型转换
+    and_, or_, not_,                          # 逻辑操作
+    union, union_all, intersect, except_,     # 集合操作
 )
 
+# User、Order 为已定义的实体类；下面统计「订单数超过 5 的城市」
 stmt = (
-    select(User)                    # 1. 选择表
-    .join(Order, User.id == Order.user_id)  # 2. JOIN
-    .where(User.is_active == True)           # 3. WHERE条件
-    .where(User.age >= 18)                   # 4. 可以多个where
-    .group_by(User.city)                     # 5. GROUP BY
-    .having(func.count(Order.id) > 5)        # 6. HAVING条件
-    .order_by(User.created_at.desc())        # 7. ORDER BY
-    .limit(10)                               # 8. LIMIT
-    .offset(20)                              # 9. OFFSET
-    .distinct()                              # 10. DISTINCT
+    select(User.city, func.count(Order.id).label("order_count"))  # 1. 选择列（分组查询只能选分组列和聚合列）
+    .join(Order, User.id == Order.user_id)        # 2. JOIN
+    .where(User.is_active.is_(True))              # 3. WHERE 条件
+    .where(User.age >= 18)                        # 4. 可以多个 where
+    .group_by(User.city)                          # 5. GROUP BY
+    .having(func.count(Order.id) > 5)             # 6. HAVING 条件
+    .order_by(func.count(Order.id).desc())        # 7. ORDER BY（分组后只能按分组列或聚合结果排序）
+    .limit(10)                                    # 8. LIMIT
+    .offset(20)                                   # 9. OFFSET
 )
+
+rows = (await db.execute(stmt)).all()             # 10. 执行，返回 [(city, order_count), ...]
 ```
+
+<Callout type="tip" title="DISTINCT 与分组查询">
+需要去重时在普通查询后加 `.distinct()`；已经 `group_by` 的查询结果本身就不重复，不需要再加。另外在 PostgreSQL 中，`select(User)` 配合 `group_by(User.city)` 会报错，因为其余列既没有分组也没有聚合。
+</Callout>

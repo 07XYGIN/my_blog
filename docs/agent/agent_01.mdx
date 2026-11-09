@@ -1,8 +1,8 @@
 ---
 title: 'Agent_01'
-description: '对话、记忆 与ToolCalling'
+description: '对话、记忆 与ToolCalling,MCP'
 category: 'Agent'
-tags: 'LLM,Memory,ToolCalling'
+tags: 'LLM,Memory,ToolCalling,MCP'
 date: '2026-11-04'
 readTime: '_'
 author: 'Gin'
@@ -10,7 +10,7 @@ IS_SHOW: TRUE
 ---
 
 <Callout title="需要内容">
-- 库: `openai` 
+- 库: `openai` 、`mcp` 
 
 - 其他:llm api key
 </Callout>
@@ -63,6 +63,7 @@ def agent_main_v1(key,name,baseUrl,system_prompt):
             if piece:
                 print(piece,end="\n",flush=True)
 ~~~
+
 ## Memory
 ~~~py
 def save_history(history:list,file:str):
@@ -126,6 +127,7 @@ def agent_main(key,name,baseUrl,system_prompt):
         save_history(history,"history.json")
         print("助手：", text)
 ~~~
+
 ## Tool Calling
 Tool Calling 让 LLM 能调用外部工具完成具体任务，例如读写文件、查询天气、调用 API。
 
@@ -430,4 +432,132 @@ def run_react(user_input: str, history: list) -> str:
 - 和 CoT 的区别:（CoT 纯脑内推理，ReAct 有外部 Observation 回灌）、
 - 和 Tool Calling 的关系:（ReAct 是组织多步调用的范式，底层通常就是 Tool Calling 循环）、
 - 为什么必须设步数上限:（防止模型反复调工具导致死循环和 token 浪费）。
+</Callout>
+
+## MCP
+
+MCP 让 LLM 通过一套标准接口，接入整个外部工具与数据生态。
+
+<Callout type="warning" title="注意">
+MCP 是"工具生态的标准协议"，不是另一套调用方式。连上 MCP server 后，它暴露的工具会被转换成 Tool Calling 的 schema，
+后续循环和你前面写的 Tool Calling / ReAct 完全一致——只是工具的来源从本地函数变成了远程服务。
+</Callout>
+
+<Steps>
+  <Step title="定义 MCP services 和 sessions">
+    每个 MCP service 描述"怎么启动/连接一个 server"，sessions 用来缓存已连接的会话，避免重复连接。
+
+    <Details title="示例">
+    ~~~py
+MCP_SERVICE_LIST = {
+    "time": StdioServerParameters(
+        command="uvx",                        # 可执行服务，如 npx、uvx
+        args=["mcp-server-time"],             # 传给可执行服务的参数
+        env={"API_KEY": "your_key"},          # 服务器认证信息（可选）
+    ),
+}
+
+MCP_SESSIONS: dict[str, ClientSession] = {}   # tool_name -> session
+tool_schemas: list = []                        # 全局：传给 API 的 tools 参数
+~~~
+    </Details>
+  </Step>
+
+  <Step title="连接 MCP 并加载工具">
+    遍历所有 service，建立连接、初始化会话，把每个 MCP tool 转换成 OpenAI 的 function schema 追加进 `tool_schemas`，
+    同时用 tool 名登记到 `MCP_SESSIONS`，供后续分发调用。
+
+    <Details title="示例">
+    ~~~py
+async def connect_mcp(stack: AsyncExitStack):
+    for name, params in MCP_SERVICE_LIST.items():
+        print(f"正在连接 {name}...")
+        read, write = await stack.enter_async_context(stdio_client(params))
+        session = await stack.enter_async_context(ClientSession(read, write))
+        # enter_async_context 手动进入上下文，退出时由 AsyncExitStack 统一关闭
+        await session.initialize()
+
+        tools_list = (await session.list_tools()).tools
+        for tool in tools_list:
+            MCP_SESSIONS[tool.name] = session
+            tool_schemas.append({
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.input_schema,
+                },
+            })
+        print(f"[mcp] 连接成功 '{name}': {[t.name for t in tools_list]}")
+~~~
+    </Details>
+  </Step>
+
+  <Step title="定义工具分发器">
+    本地 tool 和 MCP tool 走同一个入口：先查本地 `tools` 字典，命中就直接执行；否则按 tool 名找到对应 session，远程调用。
+    （本地工具的 schema 需在别处加入 `tool_schemas`，这里只负责分发。）
+
+    <Details title="示例">
+    ~~~py
+async def call_tool(name: str, args: dict) -> str:
+    """本地或远程 tool 统一入口。"""
+    if name in tools:                       # 本地 tool
+        return tools[name](**args)
+    result = await MCP_SESSIONS[name].call_tool(name, args)
+    return "\n".join(c.text for c in result.content if hasattr(c, "text")) or "（无文本结果）"
+~~~
+    </Details>
+  </Step>
+
+  <Step title="主循环">
+    外层处理多轮用户对话，内层是标准的工具调用循环（和前面 Tool Calling / ReAct 一致），
+    区别只是工具执行改成了 `await call_tool(...)`。
+
+    <Details title="示例">
+    ~~~py
+async def agent_main(key, name) -> str:
+    client = AsyncOpenAI(api_key=key, base_url="your_url")
+    messages = [{"role": "system", "content": "system prompt"}]
+
+    async with AsyncExitStack() as stack:
+        await connect_mcp(stack)          # 连接由 stack 统一管理，退出时自动关闭
+
+        while True:                        # 外层：多轮用户对话
+            user_input = await asyncio.to_thread(input, "你：")  # 避免阻塞事件循环
+            if user_input.strip().lower() in ("exit", "quit"):
+                break
+            messages.append({"role": "user", "content": user_input})
+
+            while True:                    # 内层：工具调用循环
+                response = await client.chat.completions.create(
+                    model=name, messages=messages, tools=tool_schemas
+                )
+                message = response.choices[0].message
+
+                if not message.tool_calls:
+                    messages.append({"role": "assistant", "content": message.content or ""})
+                    print(f"AI：{message.content}")
+                    break
+
+                messages.append(message.model_dump(exclude_none=True))
+                for call in message.tool_calls:
+                    args = json.loads(call.function.arguments or "{}")
+                    print(f"[tool] {call.function.name}({args})")
+                    result = await call_tool(call.function.name, args)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": result if isinstance(result, str)
+                                   else json.dumps(result, ensure_ascii=False),
+                    })
+
+    return ""   # 或返回最后一条 assistant 内容
+~~~
+    </Details>
+  </Step>
+</Steps>
+
+<Callout type="note" title="注意">
+`MCP_SESSIONS` 以 tool 名为 key。如果多个 MCP server 暴露了同名 tool，会互相覆盖；
+生产环境建议用 `(server_name, tool_name)` 作为 key，或加前缀区分。
 </Callout>

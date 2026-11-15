@@ -1,0 +1,52 @@
+---
+title: 'Git：临时保存与恢复未提交改动'
+description: '使用 stash 保存工作区、暂存区和未跟踪文件，恢复前检查条目，理解冲突与忽略文件的边界。'
+language: 'bash'
+tags: 'Git,stash,工作区'
+date: '2026-07-08'
+originTitle: 'Git 官方文档：stash'
+originHref: 'https://git-scm.com/docs/git-stash'
+---
+
+```bash title="save-local-work.sh"
+git status --short
+git stash push -u -m "WIP: pause current task"
+git stash list
+git status --short
+```
+
+## 保存范围与前提
+
+在已有提交的 Git 仓库内执行，先确认没有未解决的合并冲突。stash 适合暂时切换任务：保存改动后，会把被纳入保存范围的文件从当前工作区恢复到 HEAD 对应状态。
+
+默认 `git stash push` 保存已跟踪文件的工作区修改和暂存区修改。`-u` / `--include-untracked` 额外保存未跟踪文件，**不包含被忽略的文件**；例如被 `.gitignore` 忽略的本地配置、虚拟环境或构建产物仍可能留在原处。
+
+`-a` / `--all` 会把忽略文件也纳入保存和清理范围，可能包含大量依赖或个人配置，不要把它当作 `-u` 的默认替代。stash 保存在本地仓库里，不会随着普通 `git push` 自动备份到远程。
+
+## 检查并恢复指定条目
+
+用 `git stash list` 确认目标，再查看其内容。以下单引号可以避免 PowerShell 把 `stash@{0}` 当作特殊语法：
+
+```bash title="inspect-and-apply.sh"
+git stash show --stat 'stash@{0}'
+git stash show -p --include-untracked 'stash@{0}'
+git stash apply 'stash@{0}'
+```
+
+`apply` 恢复改动但保留 stash 条目，方便检查结果。默认不保证恢复原先的暂存状态；如果确实需要恢复暂存区划分，可以考虑 `git stash apply --index 'stash@{0}'`，但它同样可能因当前状态而失败。
+
+恢复正确并完成必要检查后，可以删除已经不再需要的条目：
+
+```bash title="drop-verified-stash.sh"
+git stash drop 'stash@{0}'
+```
+
+删除前再次确认 `git stash list`，因为新建或删除条目会改变编号。`git stash pop 'stash@{1}'` 相当于尝试恢复指定条目，并在成功时删除该条目；编号必须以当前列表为准。
+
+## 恢复冲突与保存边界
+
+当前分支与保存时的基线差异较大，`apply` 或 `pop` 都可能冲突。发生冲突后，先用 `git status` 检查每个文件，手动解决并按需要暂存。`pop` 在冲突时通常保留原 stash，不要以为它已经成功删除。
+
+stash 恢复没有 `--continue` / `--abort` 流程；不能把 `git merge --abort` 当作通用处理方法。需要放弃恢复时，应先区分恢复前已有改动与恢复产生的改动，再针对文件处理，避免覆盖自己的原始内容。
+
+临时快照不能替代清晰提交。任务需要长期保留、多人协作或跨设备继续时，更适合创建工作分支并提交。

@@ -4,10 +4,11 @@ import { KnowledgeSearch } from "@/components/knowledge-search";
 import { PostExplorer } from "@/components/post-explorer";
 import { Button } from "@/components/ui/button";
 import { HeroScene } from "@/components/webgl/hero-scene";
-import { getPosts, getSearchDocuments } from "@/lib/posts";
+import { getPosts } from "@/lib/posts";
+import { getKnowledgeDocuments } from "@/lib/search";
 
 export default async function Home() {
-  const [posts, searchDocuments] = await Promise.all([getPosts(), getSearchDocuments()]);
+  const [posts, searchDocuments] = await Promise.all([getPosts(), getKnowledgeDocuments()]);
 
   return (
     <main className="container section-pad">

@@ -3,7 +3,7 @@ import "katex/dist/katex.min.css";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SiteHeader, SiteFooter } from "@/components/site-shell";
-import { getSearchDocuments } from "@/lib/posts";
+import { getKnowledgeDocuments } from "@/lib/search";
 
 export const metadata: Metadata = {
   title: "技术笔记与项目",
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const searchDocuments = await getSearchDocuments();
+  const searchDocuments = await getKnowledgeDocuments();
 
   return (
     <html data-scroll-behavior="smooth" lang="zh-CN" suppressHydrationWarning>

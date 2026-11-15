@@ -1,0 +1,61 @@
+---
+title: '配置控制台与文件日志'
+description: '设置日志级别和格式，选择控制台或文件输出，并理解 basicConfig 的生效条件。'
+language: 'python'
+tags: 'Python,logging,日志'
+date: '2026-08-10'
+originTitle: 'Python 学习与速查索引'
+originHref: '/blog/python-review#常用模块'
+---
+
+```python title="console_logging.py" showLineNumbers
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+logger.debug("调试详情")
+logger.info("应用启动")
+logger.warning("配置尚未完整")
+```
+
+## 级别与格式
+
+适用 Python 3.10+，`logging` 是标准库。级别从低到高为 `DEBUG < INFO < WARNING < ERROR < CRITICAL`。配置为 `INFO` 时不展示 `DEBUG`；配置为 `DEBUG` 时允许这些标准级别通过，具体输出仍受 logger 和 handler 配置影响。
+
+| 占位符 | 内容 | 示例 |
+| --- | --- | --- |
+| `%(asctime)s` | 时间 | `2026-08-10 12:00:00` |
+| `%(name)s` | logger 名称 | `__main__` |
+| `%(levelname)s` | 级别名称 | `INFO` |
+| `%(filename)s` | 源文件名 | `main.py` |
+| `%(lineno)d` | 源代码行号 | `42` |
+| `%(funcName)s` | 函数名 | `load_config` |
+| `%(message)s` | 日志正文 | `应用启动` |
+
+动态值可使用 `logger.info("用户数量：%s", count)`，由 logging 在需要输出时格式化。异常处理器中使用 `logger.exception("读取失败")` 会同时记录当前异常堆栈。
+
+## 写入文件与重复配置
+
+下面是替代上面初始化配置的独立脚本，会在当前工作目录创建或追加 `app.log`。
+
+```python title="file_logging.py" showLineNumbers
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    filename="app.log",
+    filemode="a",
+    encoding="utf-8",
+)
+logging.getLogger(__name__).info("写入一条中文日志")
+```
+
+`filename` 选择文件输出，`filemode="a"` 追加，`"w"` 会覆盖旧文件；父目录需要提前存在。`encoding` 控制创建的文件 handler 所用编码。不提供 `filename` 时默认建立控制台 handler，`filemode` 和 `encoding` 不用于配置这个控制台输出；仅仅传入它们不会必然抛出 `ValueError`。
+
+`basicConfig` 默认只在 root logger 尚无 handler 时执行配置。交互环境或宿主程序已设置 handler 时，后续调用可能不生效；明确需要替换现有 root handler 时可用 `force=True`。应用入口统一初始化即可，公共模块通常只获取自己的 logger。

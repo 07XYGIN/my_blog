@@ -1,5 +1,5 @@
 ---
-title: 'FastAPI'
+title: 'FastAPI：异步数据库与 JWT 登录'
 description: '从项目结构、数据库和模型，到 JWT、依赖注入、路由与错误处理的完整示例。'
 category: 'Python'
 tags: 'FastAPI,JWT,SQLAlchemy'
@@ -11,6 +11,9 @@ IS_SHOW: true
 
 [FastAPI 官方文档(点击进入)](https://fastapi.tiangolo.com/zh/tutorial/first-steps/)
 
+本文采用 Python 3.10+、Pydantic 2、SQLAlchemy 2 和 PyJWT。数据库使用 MySQL 8；[SQLAlchemy 异步 ORM 实践](/blog/sqlalchemy) 使用 PostgreSQL，二者的驱动、连接串和日期类型需要按数据库选择，不能原样互换。按文末目录创建文件，并为 Python 包目录添加 `__init__.py`。
+
+这是可组合的学习示例，涵盖本地注册、登录和读取当前用户。数据库需提前创建；生产中的迁移、限流、令牌撤销与刷新机制需要另行设计。
 
 ## 核心基础设施
 
@@ -22,7 +25,7 @@ IS_SHOW: true
 
     ```bash
     # 数据库使用 MySQL（异步驱动 aiomysql）；cryptography 用于 MySQL 8 默认的认证方式
-    uv add "fastapi[all]" "uvicorn[standard]" sqlalchemy aiomysql cryptography
+    uv add "fastapi[all]" "uvicorn[standard]" "sqlalchemy[asyncio]>=2,<3" aiomysql cryptography
     uv add pydantic-settings email-validator "pwdlib[argon2]" pyjwt python-multipart
     ```
   </Step>
@@ -51,7 +54,9 @@ IS_SHOW: true
 
 ```python title="app/core/config.py" showLineNumbers
 from functools import lru_cache
-from urllib.parse import quote_plus
+
+from pydantic import Field, SecretStr
+from sqlalchemy import URL
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -62,21 +67,25 @@ class Settings(BaseSettings):
     # 数据库相关配置
     DB_HOST: str = "127.0.0.1"
     DB_PORT: int = 3306
-    DB_USER: str = "root"
-    DB_PASSWORD: str = "123456"  # 仅为开发默认值，真实密码写在 .env 中
+    DB_USER: str
+    DB_PASSWORD: SecretStr
     DB_NAME: str = "gin"
 
     # jwt 相关配置
-    JWT_SECRET_KEY: str = "change-me-in-.env"
+    JWT_SECRET_KEY: str = Field(min_length=32)
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60 * 24
 
     @property
-    def DATABASE_URL(self) -> str:
-        # 密码中可能包含 @ : / 等特殊字符，需要先做 URL 编码
-        return (
-            f"mysql+aiomysql://{self.DB_USER}:{quote_plus(self.DB_PASSWORD)}"
-            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset=utf8mb4"
+    def DATABASE_URL(self) -> URL:
+        return URL.create(
+            "mysql+aiomysql",
+            username=self.DB_USER,
+            password=self.DB_PASSWORD.get_secret_value(),
+            host=self.DB_HOST,
+            port=self.DB_PORT,
+            database=self.DB_NAME,
+            query={"charset": "utf8mb4"},
         )
 
 
@@ -87,6 +96,8 @@ def get_settings() -> Settings:
 
 settings = get_settings()
 ```
+
+`DB_USER`、`DB_PASSWORD` 与 `JWT_SECRET_KEY` 必须通过环境变量或 `.env` 提供，缺少配置时启动会报校验错误。用 `uv run python -c "import secrets; print(secrets.token_urlsafe(48))"` 在本地生成 JWT 密钥，填写到 `.env`，并将 `.env` 加入 `.gitignore`。`URL.create` 接受原始密码，会处理连接 URL 中的特殊字符。
 
 ### 数据库
 
@@ -142,7 +153,7 @@ from app.core.database import Base
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class User(Base):
@@ -153,10 +164,12 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+        DateTime(),
         default=utc_now,
     )
 ```
+
+MySQL 的 `DATETIME` 不保存时区，这里约定数据库中的无时区时间均为 UTC；向 API 输出时应显式附上 UTC 时区或 `Z`。PostgreSQL 可使用 `DateTime(timezone=True)` 存储时间点，见数据库差异参考。
 
 ## 认证与安全
 
@@ -200,6 +213,7 @@ def decode_access_token(token: str) -> dict:
         token,
         settings.JWT_SECRET_KEY,
         algorithms=[settings.JWT_ALGORITHM],
+        options={"require": ["exp", "sub"]},
     )
 ```
 
@@ -272,9 +286,9 @@ import jwt
 from fastapi import Depends, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
 from app.core.database import get_db
 from app.core.errors import AuthException
+from app.core.security import decode_access_token
 from app.models.user import User
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
@@ -290,15 +304,11 @@ async def get_current_user(
     token = authorization.removeprefix("Bearer ").strip()
 
     try:
-        payload = jwt.decode(
-            token,
-            settings.JWT_SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM],
-        )
+        payload = decode_access_token(token)
         user_id = int(payload["sub"])
     except jwt.ExpiredSignatureError as exc:
         raise AuthException("登录已过期,请重新登录") from exc
-    except (jwt.InvalidTokenError, KeyError, ValueError) as exc:
+    except (jwt.InvalidTokenError, KeyError, TypeError, ValueError) as exc:
         raise AuthException("无效的登录凭证") from exc
 
     user = await db.get(User, user_id)
@@ -322,8 +332,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import DbSession
 from app.core.errors import ParameterException
@@ -349,9 +361,18 @@ async def register(body: RegisterRequest, db: DbSession) -> Result[dict]:
     if exists is not None:
         raise ParameterException("邮箱已被注册", code=status.HTTP_409_CONFLICT)
 
-    user = User(email=body.email, hashed_password=hash_password(body.password))
+    hashed_password = await run_in_threadpool(hash_password, body.password)
+    user = User(email=body.email, hashed_password=hashed_password)
     db.add(user)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        # 并发注册可能同时通过前置查询，唯一约束才是最后的保障。
+        exists = await db.scalar(select(User.id).where(User.email == body.email))
+        if exists is not None:
+            raise ParameterException("邮箱已被注册", code=409) from exc
+        raise
     return Result.ok(data={"id": user.id, "email": user.email})
 
 
@@ -362,7 +383,9 @@ async def login(
 ) -> dict:
     # OAuth2 表单固定使用 username 字段，这里存放的是邮箱
     user = await db.scalar(select(User).where(User.email == form.username))
-    if user is None or not verify_password(form.password, user.hashed_password):
+    if user is None or not user.is_active or not await run_in_threadpool(
+        verify_password, form.password, user.hashed_password,
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -521,10 +544,12 @@ logging.basicConfig(
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # 开发阶段启动时自动建表；生产环境建议改用 Alembic 做迁移
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield
-    await engine.dispose()
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        yield
+    finally:
+        await engine.dispose()
 
 
 def create_app() -> FastAPI:
@@ -544,7 +569,7 @@ if __name__ == "__main__":
 ```
 
 <Callout type="note" title="logging.basicConfig 的参数">
-`filemode` 和 `encoding` 只有在同时指定 `filename` 时才有效，只想输出到控制台时不要写这两个参数，否则会抛出 `ValueError`。
+`filemode` 和 `encoding` 用于文件 handler；只输出到控制台时无需提供。`basicConfig` 在 root logger 已有 handler 时默认不再生效，详见[日志配置速查](/snippets/python/logging)。
 </Callout>
 
 ## 项目结构速查

@@ -1,256 +1,303 @@
 ---
-title: 'LangChain'
-description: 'Chain、TOOL、memory'
+title: 'LangChain：消息、工具与 Agent 的框架化实现'
+description: '从原生 SDK 迁移到 LangChain，理解消息对象、工具 schema、Runnable 组合、会话记忆与 create_agent 的职责。'
 category: 'Agent'
-tags: 'LangChain,LangGraph,Agent'
+tags: 'LangChain,ToolCalling,Memory,Agent'
 date: '2026-08-11'
-readTime: '5分钟'
+readTime: '12 分钟'
 author: 'Gin'
-IS_SHOW: False
+IS_SHOW: TRUE
 ---
-[LangChain 官方文档(点击进入)](https://python.langchain.com/)
 
-## Package
-<Details title="需要的包">
-```sh
-uv add langchain                      # 基础包
-uv add langchain-core                 # 最底层核心抽象，例如 Prompt、Message、Runnable
-uv add langchain-ollama               # 调用 Ollama LLM 服务
-uv add langchain-openai               # 调用 OpenAI 兼容模型
-uv add langchain-community            # 第三方集成包
-uv add langchain-classic              # 历史兼容包
-uv add langgraph                      # LangGraph 图运行时
-uv add langgraph-checkpoint-postgres  # 检查点持久化
-uv add langchain-postgres             # langchain的postgresql工具集
-uv add langchain-huggingface          # 文字向量化模型
-```
-</Details>
+手写过一次工具调用循环之后，LangChain 的抽象就容易理解了：它把消息格式、模型适配、工具定义和执行循环整理成可组合的接口。
 
-## Create_agent
-### LLM
-~~~py
-from langchain_openai import ChatOpenAI
+本文不重复推导 Tool Calling 的消息协议，原理见 [原生 SDK、记忆与 MCP](/blog/agent_01)。这里重点回答：换成框架之后，哪些代码可以省掉，哪些责任依然属于应用？
 
-LLM = ChatOpenAI(
-    model="xxx",
-    temperature="xxx"
-)
+## 环境与依赖
+
+示例面向 Python 3.11+、LangChain 1.x、langchain-openai 1.x 和 LangGraph 1.x。使用的接口是 ChatOpenAI、@tool、Runnable 组合，以及 langchain.agents.create_agent。它们与早期 AgentExecutor、LLMChain、ConversationBufferMemory 教程的写法不同。
+
+~~~sh
+uv add "langchain>=1,<2" "langchain-openai>=1,<2" "langgraph>=1,<2"
 ~~~
 
-### Messages
+在运行终端设置 OPENAI_API_KEY、OPENAI_MODEL。使用兼容模型服务时，再设置 OPENAI_BASE_URL。脚本读取进程环境，不自动加载 .env。模型服务需要支持对应示例使用的工具调用或结构化输出能力。
 
-- `SystemMessage` 系统提示词
-- `HumanMessage`  人类提示词
-- `AIMessage`     AI的回复
+依赖不需要一口气全装：
 
-~~~py
-# 结合提示词实现和基本的llm聊天
+| 包 | 本文中的作用 |
+| --- | --- |
+| langchain | Agent、工具和应用层接口 |
+| langchain-core | 消息、提示词、Runnable 等核心抽象；会随主包安装 |
+| langchain-openai | OpenAI 及兼容模型的适配器 |
+| langgraph | Agent 执行与状态运行时 |
+| langchain-ollama | 可选；调用本地 Ollama 服务 |
+| langchain-community | 按需安装的社区集成 |
+| langchain-classic | 维护旧版代码时使用；本文不需要 |
 
+生产项目应提交验证后的 uv.lock，不要把不同年代教程的导入路径直接混用。
+
+## 消息对象：统一格式，不自动产生记忆
+
+原生接口中的 role / content 字典，对应到 LangChain 的消息对象：
+
+| 原生角色 | LangChain 类型 |
+| --- | --- |
+| system | SystemMessage |
+| user | HumanMessage |
+| assistant | AIMessage |
+| tool | ToolMessage |
+
+### 完整脚本：调用一次模型
+
+下面的 messages_demo.py 可以独立运行。它包含所有导入和环境配置，不依赖业务项目里的客户端工厂。
+
+~~~python title="messages_demo.py" showLineNumbers
+import os
+
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-LLM = ChatOpenAI(
-    model="xxx",
-    temperature="xxx"
-)
 
-# 构造聊天记录 系统提示词->用户提示词->AI的回复
-messages = [
-    SystemMessage(content="你是一个有用的 AI 助手"),
-    HumanMessage(content="你好"),
-    AIMessage(content="你好"),
-    HumanMessage(content="做一个自我介绍")
-]
+def create_model() -> ChatOpenAI:
+    return ChatOpenAI(
+        model=os.environ["OPENAI_MODEL"],
+        api_key=os.environ["OPENAI_API_KEY"],
+        base_url=os.getenv("OPENAI_BASE_URL"),
+        temperature=0,
+    )
 
-result = llm.invoke(messages)
 
-print(result.content) # 获取AI的回复
+def main() -> None:
+    model = create_model()
+    messages = [
+        SystemMessage(content="你是一个简洁、诚实的中文助手。"),
+        HumanMessage(content="我正在学习 LangChain。"),
+        AIMessage(content="可以先从消息、模型和工具三个概念开始。"),
+        HumanMessage(content="刚才提到的三个概念是什么？"),
+    ]
+    response = model.invoke(messages)
+    print(response.content)
+    if response.usage_metadata:
+        print("模型报告的 token 用量：", response.usage_metadata)
+
+
+if __name__ == "__main__":
+    main()
 ~~~
 
-### Tool
+执行 uv run messages_demo.py。最后一次问题能利用前文，是因为前面的消息也被传给了 invoke，而不是 ChatOpenAI 自动保存了历史。
 
-LLM仅依赖于训练数据中的参数化知识进行‘用户输入-llm输出’,存在知识滞后和无法操作外部系统的局限性
+AIMessage.content 是模型回复；工具请求位于 AIMessage.tool_calls。文本示例中 content 通常是字符串，多模态或不同适配器也可能返回内容块列表，页面渲染时要单独适配。
 
-`Tool Calling`通过向`LLM`提供外部函数的定义(如函数名、参数及用途描述等),使LLM能够在需要时,输出结构化的调用指令。
+## 工具装饰器：把函数变成可描述的能力
 
-但是,`LLM`本身没有**调用**tool的动作,只能生成调用意图,需要开发者主动实现调用逻辑
+原生 SDK 通常需要手写 JSON Schema 和函数分发表。@tool 根据函数名称、类型注解和文档字符串生成工具定义，并提供 invoke 入口。
 
-<Details title="手写">
-    <Steps>
-        <Step title="tool本质是一个函数">
-        ~~~py
-        def get_weather(city: str) -> str:
-            return f"{city}的天气是25度"
-        ~~~
-        </Step>
-        <Step title="定义schema">
-        ~~~py
-        get_weather_schema = {
-            "name": "get_weather",
-            "description": "查询指定城市当前天气",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "city": {
-                        "type": "string",
-                        "description": "城市名称,比如'北京'"
-                    }
-                },
-                "required": ["city"]
-            }
-        }
-        ~~~
-        </Step>
-        <Step title="用户查询天气,llm判断调用tool,返回结构化数据;tool_calls始终是一个list,调用几个工具list里就有几项">
-        ~~~json
-        {"tool_calls": [
-            {
-                "name": "get_weather",
-                "args": {
-                    "city": "南京"
-                },
-                "id": "call_00_1eMoGmD8V4vSSaqUFaxb3571",
-                "type": "tool_call"
-            }
-        ]}
-        ~~~
-        </Step>
-        <Step title="开发者主动实现调用逻辑">
-        ~~~py
-        # 伪代码
-        while Ture:
-        xxx
-        for tool_call in response.tool_calls:
-            if tool_call["type"] == "tool_call":
-                result = get_weather(**tool_call["args"]) 
-        ~~~
-        </Step>
-    </Steps>
-</Details>
+schema 能描述参数，却不能证明业务输入合理。空城市、权限、接口超时等仍应由工具或应用处理。
 
-<Details title="使用@tool装饰器实现(参考官网)">
-~~~py
+### 完整脚本：create_agent 与会话历史
+
+下面的 agent_demo.py 是另一个独立脚本。天气为模拟数据，不访问天气接口。它展示了工具定义、自动执行循环和同一会话的第二轮提问。
+
+~~~python title="agent_demo.py" showLineNumbers
+import json
+import os
+
+from langchain.agents import create_agent
 from langchain.tools import tool
+from langchain_core.messages import HumanMessage
+from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.memory import InMemorySaver
+
+
+def create_model() -> ChatOpenAI:
+    return ChatOpenAI(
+        model=os.environ["OPENAI_MODEL"],
+        api_key=os.environ["OPENAI_API_KEY"],
+        base_url=os.getenv("OPENAI_BASE_URL"),
+        temperature=0,
+    )
+
 
 @tool
-def search_database(query: str, limit: int = 10) -> str:
-    """Search the customer database for records matching the query.
+def get_weather(city: str) -> str:
+    """返回指定城市的模拟天气，用于演示，不是真实天气查询。"""
+    if not city.strip():
+        raise ValueError("city 不能为空")
+    return json.dumps(
+        {"city": city, "temperature_c": 25, "source": "模拟数据"},
+        ensure_ascii=False,
+    )
 
-    Args:
-        query: Search terms to look for
-        limit: Maximum number of results to return
-    """
-    return f"Found {limit} results for '{query}'"
 
-"""
-    除了返回str 也可以返回其他类型,如：
-    
-    list: return [
-        {"type": "text", "text": "Screenshot of the current page:"},
-        {"type": "image", "url": "https://example.com/page.png"},
-    ]
-
-    dict: return {
-        "city": city,
-        "temperature_c": 22,
-        "conditions": "sunny",
+def main() -> None:
+    agent = create_agent(
+        model=create_model(),
+        tools=[get_weather],
+        system_prompt="你是中文助手。需要天气时调用工具，注明数据为模拟数据。",
+        checkpointer=InMemorySaver(),
+    )
+    config = {
+        "configurable": {"thread_id": "demo-session"},
+        "recursion_limit": 20,
     }
+    first = agent.invoke(
+        {"messages": [HumanMessage(content="请查询南京的天气")]},
+        config=config,
+    )
+    print(first["messages"][-1].content)
+    second = agent.invoke(
+        {"messages": [HumanMessage(content="刚才查询的是哪个城市？")]},
+        config=config,
+    )
+    print(second["messages"][-1].content)
 
-"""
+
+if __name__ == "__main__":
+    main()
 ~~~
-</Details>
 
-<Details title="流程图">
-~~~mermaid
-    flowchart TD
-    A["用户输入查询"] --> B{"LLM 判断<br/>是否需要调用工具?"}
+create_agent 负责反复调用模型、执行工具、把工具结果送回模型，并在模型结束工具调用后返回状态。返回值不是一条裸字符串，最终回复在 result["messages"] 中。
 
-    B -->|否| C["LLM 直接生成文本回复"]
-    C --> D["返回给用户"]
+InMemorySaver 保存该进程内的会话检查点。同一个 agent、同一个 thread_id 的第二次请求只传新增消息即可；重新提交完整旧历史可能造成重复。thread_id 是会话标识，不应简单等同于用户标识，一个用户可以有多个会话。
 
-    B -->|是| E["LLM 输出结构化调用指令<br/>tool_calls 列表"]
+进程重启后内存检查点消失，持久保存需要数据库 checkpointer。检查点也不等于跨会话的长期记忆：自动提取偏好、检索事实和处理过时信息，需要额外的存储与业务逻辑。
 
-    E --> F["遍历 tool_calls"]
+<Callout type="note" title="框架没有接管全部业务责任">
+工具是否被触发取决于模型返回，不能把一次示例提问当作确定的执行顺序。recursion_limit 限制图执行步数，不是单纯的工具数量或费用上限。网络重试、授权、超时和工具失败后的产品行为仍需明确设计。
+</Callout>
 
-    F --> H["提取工具名称 name"]
-    F --> I["提取参数 args"]
-    F --> J["提取调用ID id"]
+### 片段：bind_tools 与 create_agent 的区别
 
-    H --> K["根据名称匹配对应函数"]
-    I --> L["将 args 作为参数传入"]
+bind_tools 只把工具定义绑定到模型请求，不会替你执行工具。需要控制每一步时，可以保留手写循环。
 
-    K --> N["执行工具函数"]
-    L --> N
-
-    N --> O["获取工具执行结果"]
-    J --> P["result 与 id 绑定,<br/>封装为 tool_result"]
-    O --> P
-
-    P --> Q["将 tool_result 加入消息历史,<br/>再次调用 LLM"]
-    Q --> B
-~~~
+下面是放入 agent_demo.py 的局部实现，复用已经定义的 create_model 和 get_weather；不依赖该脚本里的 main。演示时在 main 中调用 run_manual 即可。
 
 ~~~python
-# 代码实现
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AIMessage
-from learn.tool.tools import get_weather
-from app.core.llms import DEEPSEEK, create_llm
-llm = create_llm(DEEPSEEK).bind_tools([get_weather])
-tools_map = {"get_weather": get_weather}
-messages = [
-    SystemMessage(content="你是一个有用的 AI 助手,请给出详细技术回答。如果用户询问某个城市的天气 需要你调用 get_weather Tool"),
-    HumanMessage(content="你好,帮我查询一下南京的天气"),
-]
-response:AIMessage = llm.invoke(messages)
-messages.append(response)
-print(response)
-while True:
-    if response.tool_calls:
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+
+
+def run_manual(question: str):
+    tools_map = {get_weather.name: get_weather}
+    bound_model = create_model().bind_tools([get_weather])
+    messages = [
+        SystemMessage(content="需要天气时使用工具，注明模拟数据。"),
+        HumanMessage(content=question),
+    ]
+    for _ in range(8):
+        response = bound_model.invoke(messages)
+        messages.append(response)
+        if not response.tool_calls:
+            return response
         for call in response.tool_calls:
-            tool_fn = tools_map[call["name"]]
-            result = tool_fn.invoke(call["args"])
-            messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
-        response = llm.invoke(messages)   # ← 关键：把新的回复存回 response
-        messages.append(response)          # ← 别忘了把这轮 AIMessage 也加入历史，否则下一轮模型看不到自己刚才说了什么
-    else:
-        break
-
-print(response.content)
-
-
-
+            try:
+                tool_object = tools_map[call["name"]]
+                result = tool_object.invoke(call["args"])
+            except Exception as error:
+                result = f"工具执行失败：{error}"
+            messages.append(ToolMessage(
+                content=str(result),
+                tool_call_id=call["id"],
+            ))
+    raise RuntimeError("达到工具调用轮数上限，任务未完成")
 ~~~
-</Details>
-### ReAct
 
-ReAct是基于 tool 循环的一种具体用法,两者属于包含关系。
+这个循环仍然需要保留带 tool_calls 的 AIMessage，并给每个调用回传 ToolMessage。LangChain 统一了类型和参数格式，没有改变协议要求。
 
-和上述的tool loop相比 ReAct多了一层 `Thought`
+工具也可以返回字典或其他支持的内容；手写分发时，应明确怎样序列化结果。本文工具统一返回 JSON 字符串，避免把不同内容形式混在同一个示例里。
 
-`Thought` 本质上是"模型写给自己看的推理草稿,用来指导下一步行动",顺便也能展示给用户看;不是"为了讲给用户听"而存在的。
+## Runnable：组合固定的数据处理流程
+
+当任务是“构造提示词、调用模型、取出文本”的固定流程，不必先建立 Agent。LangChain 的 Runnable 可以用管道符组合多个步骤。
+
+下面的局部片段放在 messages_demo.py 中，复用 create_model；需要在 main 中调用，或在交互环境中执行。
+
+~~~python
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 
 
-ReAct 在 tool loop 不变的循环结构上,通过 prompt(比如 system message)要求模型在每一轮输出里,
-除了 tool_calls,还要附带一段显式的推理文本;这段文本和 tool_calls 一起构成同一个 response,
-随着正常的 messages.append(response) 自动留在了后续轮次能看到的历史里。
-<Tabs defaultValue="ReAct">
-    <TabsList>
-    <TabsTrigger value="ReAct">ReAct</TabsTrigger>
-    <TabsTrigger value="tool loop">tool loop</TabsTrigger>
-    </TabsList>
-    <TabsContent value="ReAct">
-    用户: 帮我查一下天气,再告诉我适不适合今天晒被子<br />
-    LLM:
-        Thought: 用户想知道天气以及是否适合晒被子,我需要先查天气数据,再判断天气条件是否适合晒被子(比如是否晴天、是否有雨)。<br />
-        Action: get_weather(city="xxx")<br /> 执行的tool name
-        Observation: 25度,晴<br />  执行的结果
-        Thought: 25度、晴天,没有降水,风力信息虽然没有但一般来说晴天适合晒被子,可以给出结论了。<br />
-        Answer: 今天25度晴天,很适合晒被子。<br />
-    
-    </TabsContent>
-    <TabsContent value="tool loop">
-    用户: 帮我查一下天气,再告诉我适不适合今天晒被子<br />
-    LLM: [直接输出 tool_calls: get_weather(city="")]<br />
-    工具返回: 25度,晴<br />
-    LLM: 今天25度晴天,适合晒被子。<br />
-    </TabsContent>
-</Tabs>
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "用一句中文回答，不确定时明确说明。"),
+    ("human", "{question}"),
+])
+chain = prompt | create_model() | StrOutputParser()
+text = chain.invoke({"question": "Runnable 在这里解决什么问题？"})
+print(text)
+~~~
+
+prompt 把输入字典变成消息，model 把消息变成 AIMessage，parser 把消息变成字符串。这个固定流程不会自动决定是否调用工具，也不自动保存历史。
+
+如果只需一次模型调用，直接 invoke 已经足够。只有多个处理步骤需要反复组合时，Runnable 才开始减少重复代码。
+
+## 流式输出：区分模型文本与 Agent 事件
+
+模型流可以直接消费 model.stream；Agent 还有模型、工具、状态更新等多种事件，不应将所有事件都当作文字追加到聊天框。
+
+下面是 agent_demo.py 的局部调用片段，复用 main 中的 agent 与 config，替换一段 agent.invoke。这里采用 LangGraph 1.x 默认流接口的单模式返回形式，没有传 version="v2"。
+
+~~~python
+for chunk, metadata in agent.stream(
+    {"messages": [HumanMessage(content="用两句话解释工具调用")]},
+    config=config,
+    stream_mode="messages",
+):
+    if isinstance(chunk.content, str):
+        print(chunk.content, end="", flush=True)
+print()
+~~~
+
+messages 模式提供消息片段和元数据；updates 模式提供节点更新；values 模式提供完整状态。若启用另一版事件协议，返回结构可能变成带 type / data 的对象，消费端也必须一起调整。
+
+content 为空不代表程序没有工作，工具参数可能通过其他字段分片返回。本例只显示文本，没有实现工具参数的流式解析。
+
+usage_metadata 由适配器和服务商提供。chunk 数量不能替代 token 数量，流式用量也不能不加区分地把每个片段都当作最终总量。
+
+## 结构化输出：让模型结果有明确形状
+
+当下游要读取固定字段时，使用 Pydantic 描述输出，比事后在自由文本里查找分隔符更可靠。
+
+下面的局部片段放在 messages_demo.py 中，复用 create_model。模型服务必须支持工具调用；这里明确选择 function_calling 方式，不假定兼容服务支持原生 json_schema 模式。
+
+~~~python
+from pydantic import BaseModel, Field
+
+
+class CityBrief(BaseModel):
+    city: str = Field(description="示例数据中的城市名称")
+    summary: str = Field(description="一句中文摘要，明确说明是模拟数据")
+
+
+structured_model = create_model().with_structured_output(
+    CityBrief,
+    method="function_calling",
+)
+brief = structured_model.invoke(
+    "根据模拟数据生成摘要：城市南京，温度25摄氏度。不要当作真实天气。"
+)
+print(brief.city)
+print(brief.summary)
+~~~
+
+传入 Pydantic 类时，成功解析的结果是相应模型实例；字段类型检查不等于内容事实正确。模型不遵循约定、服务不支持相关能力或输出被截断时，调用仍可能失败，业务代码需要处理这些错误。
+
+结构化输出与打字机效果可以同时设计，但不要把未闭合的 JSON 片段直接交给 json.loads。需要只流出某个字段时，可在 [LangGraph](/blog/langgraph) 中分开组织文本事件和最终结构化结果。
+
+## 替换模型适配器时需要确认什么
+
+如果改用 Ollama，可额外安装 langchain-ollama，在 create_model 中返回它提供的模型类：
+
+~~~python
+# 局部替换示例：需已启动 Ollama，并准备支持所需能力的模型。
+from langchain_ollama import ChatOllama
+
+
+model = ChatOllama(model=os.environ["OLLAMA_MODEL"])
+~~~
+
+消息和 Runnable 的调用形式通常可以保留，但工具调用、结构化输出、内容块与用量字段仍取决于模型及适配器。统一接口减少了接入差异，不会抹平服务能力差异。
+
+本文示例不包含真实模型运行结果。检查时应先核对导入、参数和消息配对，再用实际服务分别验证文本、工具、会话与流式能力。扩展到人工确认和恢复执行时，再进入 LangGraph 的状态与检查点层。
+
+参考：[LangChain Agent](https://docs.langchain.com/oss/python/langchain/agents)、[工具定义](https://docs.langchain.com/oss/python/langchain/tools)、[消息](https://docs.langchain.com/oss/python/langchain/messages)、[短期记忆](https://docs.langchain.com/oss/python/langchain/short-term-memory)、[流式输出](https://docs.langchain.com/oss/python/langchain/streaming)。

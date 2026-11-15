@@ -6,9 +6,9 @@ tags: 'Redis,Python,连接池'
 date: '2026-10-19'
 ---
 
-~~~py
+~~~python title="redis_helpers.py" showLineNumbers
 import redis
-from typing import Literal,Optional
+from typing import Optional
 REDIS_POOL = redis.ConnectionPool(
     host='localhost',
     port=6379,
@@ -29,7 +29,7 @@ def redis_set(key: str, value: str, timeout: Optional[int] = None) -> bool:
     :param key: 键名
     :param value: 值
     :param timeout: 过期时间（秒）
-    :return: 成功返回True，失败返回False
+    :return: 成功返回True；连接或命令错误会抛出异常
     """
     client = get_redis_client()
     return client.set(key, value, ex=timeout)
@@ -78,3 +78,37 @@ def redis_expire(key: str, timeout: int) -> bool:
 
 
 ~~~
+
+## 依赖与连接
+
+```bash
+uv add redis
+```
+
+示例使用同步 `redis-py` 客户端，连接本机 `localhost:6379`。Redis 服务需要单独启动；地址、数据库和认证信息应按运行环境配置。
+
+模块级连接池供各个函数复用，创建 `Redis` 客户端不会为每个函数重新创建独立的池。异步接口应使用 `redis.asyncio`，避免同步网络请求阻塞事件循环。
+
+可以使用 [Docker 本地 Redis 速查](/snippets/docker/redis-container)准备服务。进程关闭且不再有请求使用连接池时，调用 `REDIS_POOL.disconnect()` 释放池内连接，不要在每个函数调用后关闭共享池。
+
+## 使用示例
+
+把上面的函数保存为 `redis_helpers.py`，在同目录的脚本中调用：
+
+```python title="main.py" showLineNumbers
+from redis_helpers import redis_delete, redis_expire, redis_exists, redis_get, redis_set
+
+redis_set("demo:name", "Gin", timeout=60)
+print(redis_get("demo:name"))       # Gin
+print(redis_exists("demo:name"))    # True
+redis_expire("demo:name", 120)
+print(redis_delete("demo:name"))    # True
+print(redis_get("demo:name"))       # None
+```
+
+## 返回值与边界
+
+- `decode_responses=True` 让字符串值自动解码为 `str`，不存在的键返回 `None`。
+- `timeout=None` 表示不设置过期时间，正整数表示秒数；使用 `set(..., ex=timeout)` 可以在写入时同时设置有效期。
+- `delete`、`exists`、`expire` 的结果被转换为布尔值；对不存在的键删除或设置过期时间返回 `False`。
+- 连接或网络错误仍会抛出异常，不会转换成 `False`。调用方应根据业务决定重试、降级或记录错误。

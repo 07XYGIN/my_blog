@@ -1,0 +1,106 @@
+---
+title: 'Next.js 构建内存不足：诊断与验证'
+description: '区分 V8 堆上限与系统内存不足，记录构建环境、采集 profile，并验证依赖和预渲染带来的开销。'
+category: '踩坑'
+tags: 'Next.js,OOM,构建,排查'
+date: '2026-10-08'
+readTime: '7 分钟'
+author: 'Gin'
+IS_SHOW: TRUE
+---
+
+构建失败时，先从日志判断是谁终止了进程，再决定是否调整 Node 堆上限。这份指南以本项目的 Next.js 16.3 / Node.js 22 为参考，命令需要结合实际版本的 `next build --help` 使用。
+
+## 区分两种内存问题
+
+| 现象 | 可以得出的结论 | 接下来检查 |
+| --- | --- | --- |
+| `JavaScript heap out of memory`、`Reached heap limit` | 某个 V8 进程达到堆上限 | 堆上限、保留对象、具体构建阶段 |
+| 进程被杀，Linux 日志出现 OOM killer 或容器 `OOMKilled` | 操作系统/容器内存不足 | 内存限额、进程总 RSS、并行 worker |
+| 只有退出码 137 或 `Killed` | 进程收到了强制终止信号，原因尚未确认 | CI、容器与系统日志，不能仅凭退出码判断 |
+
+V8 堆只是进程内存的一部分。原生模块、缓冲区、线程和子进程也会消耗内存；把堆上限设成容器全部可用内存，可能使进程更容易被系统终止。
+
+## 建立可复现的环境记录
+
+在项目根目录收集版本与配置，使用相同锁文件安装依赖：
+
+```bash title="环境与构建命令"
+node --version
+pnpm --version
+pnpm exec next --version
+node -e "console.log(Math.round(require('node:v8').getHeapStatistics().heap_size_limit / 1024 / 1024) + ' MiB')"
+pnpm install --frozen-lockfile
+pnpm build
+```
+
+记录提交号、操作系统、机器/容器内存、构建命令、bundler、失败阶段和完整错误。普通 `build` 与本项目的 `build:static` 环境不同，应分别记录。冷缓存和热缓存的结果也应分开比较。
+
+可以用任务管理器、CI 监控或系统工具记录峰值 RSS；如果构建会启动多个 worker，要观察整个进程树。不要把“某个 Node 进程的堆使用量”写成整次构建的内存峰值。
+
+## 临时调整 V8 堆上限
+
+下面的 4096 是 MiB，按实际机器余量选择。POSIX shell 可只给单次命令设置环境变量：
+
+```bash
+NODE_OPTIONS=--max-old-space-size=4096 pnpm build
+```
+
+PowerShell 使用环境变量，并在结束后恢复原值：
+
+```powershell
+$previousNodeOptions = $env:NODE_OPTIONS
+try {
+    $env:NODE_OPTIONS = "$previousNodeOptions --max-old-space-size=4096".Trim()
+    pnpm build
+} finally {
+    $env:NODE_OPTIONS = $previousNodeOptions
+}
+```
+
+如果原值已有同名选项，应先检查并合并配置，避免重复。提高上限后构建成功，只能说明这次构建受益于更多堆空间，不能据此确定是依赖太大、泄漏还是代码错误。
+
+## 定位内存消耗来源
+
+先确认命令支持的选项：
+
+```bash
+pnpm exec next build --help
+```
+
+Next.js 的内存指南提供 `--experimental-debug-memory-usage`，会输出堆和 GC 信息，接近上限时采集快照；它与 Webpack build worker 存在兼容限制，使用前检查当前版本文档。另一种采样方式是让 Node 记录主构建进程的堆 profile：
+
+```bash
+node --heap-prof node_modules/next/dist/bin/next build
+```
+
+构建退出后可将生成的 `.heapprofile` 载入 Chrome DevTools 的 Memory 面板。子进程的内存未必包含在主进程 profile 中；主进程没有异常增长时，继续检查 worker 和系统层监控。快照与 profile 可能包含业务数据，分享前先检查内容。
+
+| 失败阶段 | 优先检查 |
+| --- | --- |
+| 编译 | 大型依赖、重复包、插件、source map 与 bundler 配置 |
+| 类型检查 | 类型规模、生成文件范围、类型依赖；单独运行检查定位 |
+| 静态生成/预渲染 | 页面数量、并发任务、读入的数据量、MDX/图片处理与缓存 |
+
+`ANALYZE=true` 本身没有开启分析的通用能力，只有项目配置了读取该变量的分析插件才有效。bundle 报告解释产物大小，堆 profile 解释运行时对象保留，两者需要结合实际证据判断。
+
+## 验证一项改动是否有效
+
+一次只改变一个因素，使用同一环境重新构建。依赖裁剪、减少重复数据处理或降低并行任务量，都应有对应的峰值内存与耗时记录。
+
+客户端组件按需加载可以改善首屏 JS，但不保证减少构建内存：bundler 仍需处理该模块。App Router 中使用 `dynamic(..., { ssr: false })` 时，必须放在 Client Component 中，也不应仅为绕过 OOM 就禁用必要的服务端渲染。
+
+建议保留这样的记录表，并填写实际测量值：
+
+| 提交/变更 | 环境与缓存条件 | 命令 | 峰值 RSS | 耗时 | 结果 |
+| --- | --- | --- | --- | --- | --- |
+| 基线 | 实测填写 | `pnpm build` | 实测填写 | 实测填写 | 实测填写 |
+| 单项改动 | 与基线一致 | `pnpm build` | 实测填写 | 实测填写 | 实测填写 |
+
+本文不提供未经测量的优化比例。复现消失、构建产物正常，并且峰值留有可解释的余量后，才有依据保留这项修改。
+
+## 参考
+
+- [Next.js Memory Usage](https://nextjs.org/docs/app/guides/memory-usage)
+- [Next.js Lazy Loading](https://nextjs.org/docs/app/guides/lazy-loading)
+- [Node.js CLI：max-old-space-size](https://nodejs.org/api/cli.html#--max-old-space-sizesize-in-mib)

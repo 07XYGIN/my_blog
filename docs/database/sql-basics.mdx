@@ -9,7 +9,7 @@ author: 'Gin'
 IS_SHOW: true
 ---
 
----
+以下示例以 MySQL 8.0.16+ 与 PostgreSQL 13+ 共有的语法为主。数据库管理、类型与特有函数见 [MySQL 与 PostgreSQL：常用语法差异](/blog/mysql-postgresql)。各小节用于独立查阅，涉及同名表时应使用自己的练习数据库。
 
 ## 1. SQL 语句分类
 
@@ -40,11 +40,11 @@ ALTER TABLE users ADD COLUMN status VARCHAR(20) DEFAULT 'active';
 -- 删除字段
 ALTER TABLE users DROP COLUMN status;
 
--- 删除表
-DROP TABLE IF EXISTS users;
 ```
 
-自增主键、表注释、字符集、分区等语法在不同数据库中差异较大，放在各自文档中记录。
+需要清理练习表时再执行 `DROP TABLE IF EXISTS users;`。`DROP TABLE` 删除表结构和数据，不要在后续查询仍需使用该表时执行。
+
+自增主键、表注释、字符集、分区等语法在不同数据库中差异较大，见[差异参考](/blog/mysql-postgresql#建表-主键与注释)。
 
 ---
 
@@ -87,9 +87,8 @@ WHERE username LIKE 'a%';
 -- 常见条件组合
 SELECT *
 FROM users
-WHERE id > 10
-  AND email IS NOT NULL
-  OR username LIKE '%test%';
+WHERE (id > 10 AND email IS NOT NULL)
+   OR username LIKE '%test%';
 
 -- 聚合查询
 SELECT COUNT(*) AS total_count,
@@ -120,11 +119,9 @@ LIMIT 10 OFFSET 20;
 -- 条数计算公式：偏移量 = (页码 - 1) * 页大小
 ```
 
-分页偏移量可以写成行内公式 $offset = (page - 1) \times pageSize$，块级公式如下：
+页码从 1 开始时，偏移量为 `(page - 1) * pageSize`。分页必须配合稳定排序；排序列可能重复时追加主键，避免翻页结果漂移。大偏移量会增加扫描成本，可以考虑按上一页末尾的排序键继续查询。
 
-$$
-\operatorname{offset} = (\operatorname{page} - 1) \times \operatorname{pageSize}
-$$
+条件中 `AND` 的优先级高于 `OR`，用括号写清分组。`NULL` 表示未知值，用 `IS NULL` / `IS NOT NULL` 判断，不能用 `= NULL`。
 
 `LIKE` 常用通配符：
 
@@ -160,13 +157,13 @@ CREATE TABLE employees (
     id BIGINT PRIMARY KEY,
     department_id BIGINT NOT NULL,
     name VARCHAR(50) NOT NULL,
-    salary DECIMAL(10, 2) CHECK (salary >= 0),
+    salary DECIMAL(10, 2) NOT NULL CHECK (salary >= 0),
     CONSTRAINT fk_employees_department
         FOREIGN KEY (department_id) REFERENCES departments(id)
 );
 ```
 
-删除外键或约束的语法在 MySQL 和 PostgreSQL 中不完全一致，见各自文档。
+删除外键或约束的语法在 MySQL 和 PostgreSQL 中不完全一致，见[约束变更](/blog/mysql-postgresql#外键与约束变更)。`CHECK` 对结果为未知值的表达式通常不会判定违规，因此禁止空值仍需单独声明 `NOT NULL`。`UNIQUE` 也不能代替 `NOT NULL`。
 
 ---
 
@@ -206,14 +203,11 @@ WHERE d.id = e.department_id;
 索引用于提升查询性能，常见场景包括 `WHERE`、`JOIN`、`ORDER BY`、`GROUP BY` 中频繁使用的字段。
 
 ```sql
--- 单列索引
-CREATE INDEX idx_users_email ON users(email);
-
 -- 多列索引
 CREATE INDEX idx_users_name_created_at ON users(username, created_at);
 ```
 
-多列索引需要关注列顺序。通常把区分度高、查询频率高、经常作为过滤条件的列放在前面。
+本例的 `email` 已有唯一约束，通常不再建立同列普通索引。多列索引的顺序由查询的等值过滤、范围过滤和排序方式共同决定，不能只按“区分度最高的列放第一位”机械选择。使用 `EXPLAIN` 核对实际计划；索引也会增加存储和写入维护成本。
 
 示例：索引 `(username, created_at)` 可以优化：
 
@@ -234,29 +228,33 @@ WHERE created_at >= '2024-01-01'
 
 ## 8. 事务
 
-事务用于保证一组操作要么全部成功提交，要么全部失败回滚，避免数据处于不一致状态。
+事务让一组数据修改可以作为整体提交或回滚。应用需要检查执行结果，并在失败时回滚；开启事务本身不会自动处理业务约束或所有数据库错误。
 
 ACID：
 
 | 特性 | 说明 |
 | ---- | ---- |
 | Atomicity 原子性 | 事务中的操作要么全部完成，要么全部不完成 |
-| Consistency 一致性 | 事务执行前后，数据库都保持一致性状态 |
-| Isolation 隔离性 | 并发事务之间尽量互不干扰 |
+| Consistency 一致性 | 事务应维持约束与业务不变量，依赖正确的约束和应用逻辑 |
+| Isolation 隔离性 | 并发事务之间的数据可见性由隔离级别决定 |
 | Durability 持久性 | 事务提交后，修改会被持久保存 |
 
 ```sql
+CREATE TABLE accounts (
+    id BIGINT PRIMARY KEY,
+    balance DECIMAL(12, 2) NOT NULL CHECK (balance >= 0)
+);
+INSERT INTO accounts (id, balance) VALUES (1, 500.00), (2, 100.00);
+
 BEGIN;
-
--- 执行多条 SQL
-UPDATE accounts SET balance = balance - 100 WHERE id = 1;
-UPDATE accounts SET balance = balance + 100 WHERE id = 2;
-
+UPDATE accounts SET balance = balance - 100.00 WHERE id = 1;
+UPDATE accounts SET balance = balance + 100.00 WHERE id = 2;
 COMMIT;
-
--- 出错时回滚
-ROLLBACK;
 ```
+
+这个示例假设两行存在且金额固定。真实转账还要检查受影响行数、余额、并发访问与重复请求。若执行失败，应在 `COMMIT` 前改为 `ROLLBACK`；提交以后再执行 `ROLLBACK` 不能撤销已经提交的修改。
+
+MySQL 需使用支持事务的存储引擎（通常为 InnoDB），且许多 DDL 会隐式提交。PostgreSQL 中事务里的语句报错通常会使该事务进入失败状态，需要回滚，或者用预先建立的保存点恢复。不要假定不同数据库对每种错误的处理都相同。
 
 ---
 

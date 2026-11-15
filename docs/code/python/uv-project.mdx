@@ -1,0 +1,46 @@
+---
+title: '用 uv 创建和运行 Python 项目'
+description: '初始化项目、固定 Python 版本、同步依赖，并通过 uv run 使用项目环境。'
+language: 'powershell'
+tags: 'Python,uv,环境管理'
+date: '2026-08-10'
+originTitle: 'Python 学习与速查索引'
+originHref: '/blog/python-review#环境与项目管理-uv'
+---
+
+```powershell title="创建项目并运行 Python" showLineNumbers
+uv init my-project --python 3.11
+Set-Location my-project
+uv python pin 3.11
+uv sync
+uv run python -c "import sys; print(sys.version); print(sys.executable)"
+```
+
+## 项目与解释器
+
+适用 Python 3.10+，上面使用已安装的 uv，在 PowerShell 中运行。`uv init` 创建项目配置；`uv python pin 3.11` 写入 `.python-version`；`uv sync` 根据项目依赖创建或同步 `.venv`。
+
+`.python-version` 表示优先使用的解释器版本，`pyproject.toml` 中的 `requires-python` 表示项目支持的版本范围。修改前者不会自动修改后者；要确认两个范围相容。
+
+```powershell title="维护项目依赖" showLineNumbers
+# 在已有项目根目录运行
+uv add requests
+uv sync
+uv run python main.py
+```
+
+`uv add` 更新依赖声明与锁文件；`uv sync` 让本机环境与项目锁定的依赖一致。`uv run` 使用项目环境执行命令，通常不需要先手动激活。
+
+## 只创建虚拟环境
+
+```powershell title="不创建项目配置的虚拟环境" showLineNumbers
+uv venv .venv
+# 指定版本时，改为：uv venv --python 3.11 .venv
+.\.venv\Scripts\Activate.ps1
+python --version
+deactivate
+```
+
+`uv venv` 只负责环境，不会替代项目的依赖声明。Windows 的 PowerShell 使用 `Activate.ps1`；cmd 使用 `.venv\Scripts\activate.bat`；macOS 和 Linux 通常使用 `source .venv/bin/activate`。
+
+若 PowerShell 不允许执行激活脚本，可以直接使用 `uv run`，或调用 `.\.venv\Scripts\python.exe`。

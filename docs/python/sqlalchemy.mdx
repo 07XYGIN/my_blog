@@ -11,17 +11,31 @@ IS_SHOW: true
 
 ## 安装
 
+适用 Python 3.10+、SQLAlchemy 2.x 和 PostgreSQL。这里使用 `asyncpg`；[FastAPI 登录示例](/blog/fastapi) 选择的是 MySQL/`aiomysql`，会话模式类似，但连接串与数据库特有类型需要分别配置。
+
 ```bash
 # asyncpg 是异步 PostgreSQL 驱动，与下面 postgresql+asyncpg 的连接串对应
-uv add sqlalchemy asyncpg pgvector
+uv add "sqlalchemy[asyncio]>=2,<3" asyncpg
 
-# psycopg2-binary 是同步驱动，只有同步代码或 Alembic 迁移才需要
+# 同步程序可另选 psycopg 驱动；Alembic 也支持异步模板，并非必须使用同步驱动
 # uv add psycopg2-binary
 ```
 
 ## PostgreSQL 连接
 
 连接部分分为四块：**引擎**、**会话工厂**、**声明式基类**、**依赖注入函数**。
+
+先提供环境配置，在包目录创建 `__init__.py`。密码只从环境读取，不写入文章或仓库。
+
+```python title="db/config.py" showLineNumbers
+import os
+
+HOST = os.environ.get("PGHOST", "127.0.0.1")
+PORT = int(os.environ.get("PGPORT", "5432"))
+USER = os.environ["PGUSER"]
+PASSWORD = os.environ["PGPASSWORD"]
+DB_NAME = os.environ["PGDATABASE"]
+```
 
 ### 创建异步引擎
 
@@ -58,7 +72,7 @@ from .engine import engine
 SessionLocal = async_sessionmaker(
     bind=engine,            # 绑定到之前创建的异步引擎
     class_=AsyncSession,    # 指定使用异步会话类
-    expire_on_commit=False, # 提交后对象保持"新鲜"，可直接访问属性
+    expire_on_commit=False, # 提交后保留已加载的属性，不自动重新查询
 )
 
 
@@ -71,12 +85,14 @@ class Base(DeclarativeBase):
 
 | 取值 | 事务提交后 | 适用场景 |
 | --- | --- | --- |
-| `True`（默认） | 对象属性过期，下次访问需重新查库 | 需要严格一致性的场景 |
-| `False`（推荐） | 对象属性保持可用 | Web 接口返回对象、避免额外查询 |
+| `True`（默认） | 对象属性过期，下次访问通常需重新查库 | 同步代码中按需刷新属性；异步访问需显式处理 |
+| `False`（异步常用） | 已加载属性保持可用，可能已不是数据库最新值 | Web 接口返回对象、避免隐式 IO |
 
 <Callout type="note" title="异步下不要依赖隐式懒加载">
 `AsyncSession` 中访问尚未加载的属性或关系，会因为触发隐式 IO 而抛出 `MissingGreenlet`。`expire_on_commit=False` 解决的是提交后属性过期的问题；关系字段需要在定义时用 `lazy="selectin"`，或在查询时用 `selectinload` / `joinedload` 主动加载。
 </Callout>
+
+属性不过期不代表严格一致；需要最新数据时显式 `await session.refresh(obj)`，并结合事务隔离级别决定可见性。每个请求或并发任务使用自己的 `AsyncSession`。
 
 ### 依赖注入函数
 
@@ -94,6 +110,38 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 ```
 
 ## 定义实体类
+
+下面沿用虚拟伴侣配置的业务示例。关系两端都必须定义：先补齐 `User`，再定义配置模型。`TYPE_CHECKING` 下的导入仅帮助类型检查；应用启动时仍需实际导入两个模型模块，SQLAlchemy 才能解析关系名称。
+
+```python title="models/user.py" showLineNumbers
+from __future__ import annotations
+
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+from sqlalchemy import BigInteger, DateTime, String, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from db.session import Base
+
+if TYPE_CHECKING:
+    from models.girlfriend_config import GirlfriendConfig
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    code: Mapped[str] = mapped_column(String(64), unique=True)
+    user_name: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+    )
+    girlfriend_configs: Mapped[list["GirlfriendConfig"]] = relationship(
+        back_populates="user", cascade="save-update, merge, delete, delete-orphan", passive_deletes=True,
+        lazy="selectin",
+    )
+```
 
 ### 导入部分
 
@@ -191,7 +239,7 @@ class GirlfriendConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         server_default=func.now(),
-        onupdate=func.now(),  # 更新时自动设置为当前时间
+        onupdate=func.now(),  # SQLAlchemy 生成 UPDATE 时加入；不是数据库触发器
         nullable=False,
         comment="最后更新时间",
     )
@@ -238,7 +286,7 @@ class GirlfriendConfig(Base):
 | `int` | `Integer()` | INT | 整数 |
 | `int` | `BigInteger()` | BIGINT | 大整数 |
 | `bool` | `Boolean()` | BOOLEAN | 布尔值 |
-| `datetime` | `DateTime()` | DATETIME | 日期时间 |
+| `datetime` | `DateTime()` | TIMESTAMP WITHOUT TIME ZONE（PostgreSQL） | 日期时间，其他方言可能用 DATETIME |
 | `datetime` | `TIMESTAMP()` | TIMESTAMP | 时间戳 |
 | `float` | `Float()` | FLOAT | 浮点数 |
 | `Decimal` | `Numeric(10,2)` | DECIMAL(10,2) | 精确小数 |
@@ -267,7 +315,7 @@ class GirlfriendConfig(Base):
 | `autoincrement=True` | Integer/BigInteger | `mapped_column(autoincrement=True)` | 自动递增 |
 | `nullable=False` | 所有类型 | `mapped_column(nullable=False)` | 不允许 NULL |
 | `unique=True` | String/Integer 等 | `mapped_column(unique=True)` | 值必须唯一 |
-| `index=True` | 所有类型 | `mapped_column(index=True)` | 创建索引 |
+| `index=True` | 取决于数据库/索引方法支持 | `mapped_column(index=True)` | 创建普通索引，需与查询方式匹配 |
 | `default=值` | 所有类型 | `mapped_column(default="默认")` | Python 默认值 |
 | `server_default=值` | 所有类型 | `server_default=func.now()` | 数据库默认值 |
 | `onupdate=值` | DateTime/TIMESTAMP | `onupdate=func.now()` | 更新时自动设置 |
@@ -283,10 +331,24 @@ class GirlfriendConfig(Base):
 | 2 | 处理边界条件 |
 | 3 | 处理逻辑（可计算部分） |
 | 4 | 定义 SQL |
-| 5 | 提交并执行 SQL |
+| 5 | 执行 SQL，写入时按业务边界提交事务 |
 | 6 | 根据 SQL 返回内容定义接口返回值 |
 
 ```python title="api/user.py" showLineNumbers {3,4,13,16}
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Header
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from db.deps import get_db
+from models.user import User
+from app.core.errors import ParameterException
+from app.core.response import Result
+
+router = APIRouter()
+
+
 @router.get("/info", response_model=Result[dict], summary="获取用户信息", tags=["角色信息"])
 async def get_user_info(
     db: AsyncSession = Depends(get_db),      # step 1. 数据库会话
@@ -301,7 +363,7 @@ async def get_user_info(
     # step 4. 定义 SQL（变量名用 stmt，不要和实体变量混淆）
     stmt = select(User.created_at, User.id, User.user_name).where(User.code == code)
 
-    # step 5. 提交并执行 SQL
+    # step 5. 执行查询，不需要 commit
     result = await db.execute(stmt)
 
     # step 6. 根据 SQL 返回内容定义接口返回值
@@ -318,34 +380,40 @@ async def get_user_info(
     })
 ```
 
-`Result` 和 `ParameterException` 的定义见 FastAPI 文档中的「统一响应格式」与「集中异常处理」。
+该接口是接入 FastAPI 工程的片段，`app.core` 模块来自 [FastAPI 示例](/blog/fastapi#集中异常处理)；把本篇的 `db`、`models` 包放在项目根目录，并由入口注册 `router`。它不是独立运行的脚本。
+
+初始化数据库时需 `import models.user` 和 `import models.girlfriend_config` 注册元数据，再在 `async with engine.begin() as conn` 中执行 `await conn.run_sync(Base.metadata.create_all)`。这只创建缺失的表，不替代结构迁移；生产环境使用 Alembic。程序结束时执行 `await engine.dispose()` 释放连接池。
 
 常用的会话操作（注意哪些需要 `await`）：
 
 ```python title="session_methods.py" showLineNumbers
-await db.execute(stmt)       # 提交 SQL 语句并拿到结果
-await db.commit()            # 提交事务（只有增删改需要）
+await db.execute(stmt)       # 执行 SQL 并拿到结果，不等于提交事务
+await db.commit()            # 提交本次事务，持久化写入
 db.add(obj)                  # 新增一个对象（同步方法，不需要 await）
 db.add_all([obj1, obj2])     # 批量新增（同步方法）
 await db.delete(obj)         # 删除对象（异步方法，需要 await）
 ```
 
+以上是异步函数内部的方法速查，`db`、`stmt` 和对象由调用方提供。写操作也可以用 `async with SessionLocal.begin() as db:`，退出时成功提交、异常回滚；不要在这个上下文内部另行提前 `commit()`。查询同样会开启事务，会话关闭时会结束尚未提交的事务。
+
 ### Result 常用方法
 
-`result` 是数据库执行 SQL 后返回的结果容器，`result.rowcount` 返回 SQL 影响的行数（删除或修改）。
+`result` 是数据库执行 SQL 后返回的结果容器。更新/删除的 `rowcount` 是否可靠取决于驱动与语句，可能为 `-1`；不要将它用于普通 SELECT 的结果计数。
 
 | 方法 | 返回 | 说明 | 适用查询 |
 | --- | --- | --- | --- |
 | `result.one_or_none()` | 单行或 `None` | 不存在返回 `None`，多行报错 | 多列，如 `select(User.psd, User.code)` |
 | `result.scalar_one_or_none()` | 单值或 `None` | 不存在返回 `None`，多行报错，自动解包 | 单列或单个实体，如 `select(User).where(User.id == userid)` |
-| `result.one()` | 单行 | 不存在直接报错 | 多列；查当前登录用户等理论上一定存在的场景 |
+| `result.one()` | 单行 | 不存在或多行都报错 | 业务要求恰好一行的多列查询 |
 | `result.first()` | 第一行或 `None` | 不存在返回 `None` | 多列 |
 | `result.all()` | 列表 | 取所有行 | 多列 |
-| `result.scalar()` | 单值 | 取第一行第一列 | 单列 |
+| `result.scalar()` | 单值或 `None` | 取第一行第一列，不验证唯一性 | 单列 |
 | `result.scalars().all()` | 扁平列表 | 只查一列时返回 `[1, 2, 3]` | 单列 |
-| `result.mappings().all()` | 字典列表 | 返回 `[{'id':1, 'name':'张三'}]` | 多列 |
+| `result.mappings().all()` | RowMapping 列表 | 按列名访问；`[dict(row) for row in ...]` 转成普通字典 | 多列 |
 
 ## 构建 SQL 语句
+
+下面是聚合查询的结构模板，假设另有包含 `user_id` 的 `Order` 模型，且 `User` 有 `city`、`age`、`is_active` 列；这些字段不属于上面的最小模型。实际调用放在异步函数中，按自己的实体替换。
 
 ```python title="query.py" showLineNumbers
 from sqlalchemy import (
@@ -378,5 +446,5 @@ rows = (await db.execute(stmt)).all()             # 10. 执行，返回 [(city, 
 ```
 
 <Callout type="tip" title="DISTINCT 与分组查询">
-需要去重时在普通查询后加 `.distinct()`；已经 `group_by` 的查询结果本身就不重复，不需要再加。另外在 PostgreSQL 中，`select(User)` 配合 `group_by(User.city)` 会报错，因为其余列既没有分组也没有聚合。
+`GROUP BY` 决定分组粒度，`DISTINCT` 对最终选择列去重，二者不等价。例如按城市分组却只选订单数量时，不同城市可能得到同一个数量。通常选择了分组键的聚合查询不再需要额外去重。在 PostgreSQL 中，`select(User)` 配合 `group_by(User.city)` 会因其他列没有分组或聚合而报错；主键带来的函数依赖是另一种情况。
 </Callout>

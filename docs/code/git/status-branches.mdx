@@ -1,0 +1,73 @@
+---
+title: 'Git：检查改动并创建工作分支'
+description: '读懂工作区与暂存区状态，检查提交范围，再创建、切换与推送工作分支。'
+language: 'bash'
+tags: 'Git,分支,版本控制'
+date: '2026-07-08'
+originTitle: 'Git 官方文档：status'
+originHref: 'https://git-scm.com/docs/git-status'
+---
+
+```bash title="inspect-working-tree.sh"
+git status --short
+git diff
+git diff --cached
+git branch --show-current
+git log --oneline -5
+```
+
+## 先读懂当前状态
+
+需要已经安装 Git，并在一个 Git 仓库内执行。首段命令只检查状态，不修改文件。`git diff` 查看尚未暂存的改动，`git diff --cached` 查看准备进入下一次提交的内容；二者都不会显示普通未跟踪文件的完整内容，需要单独打开这些文件检查。
+
+`git status --short` 的前两列是状态：第一列描述**暂存区相对 HEAD** 的差异，第二列描述**工作区相对暂存区** 的差异。
+
+| 输出例子 | 含义 |
+| --- | --- |
+| `?? new.py` | 未跟踪文件 |
+| `A  new.py` | 新文件已暂存 |
+| ` M app.py` | 已跟踪文件在工作区修改，尚未暂存 |
+| `M  app.py` | 修改已暂存 |
+| `MM app.py` | 修改暂存后，又产生了新的未暂存修改 |
+| ` D old.py` | 工作区删除，尚未暂存 |
+| `R  old.py -> new.py` | 暂存区检测到重命名 |
+| `UU app.py` | 双方修改导致未解决冲突 |
+
+`U` 表示 unmerged（未解决的合并状态），不是未跟踪；冲突还可能以 `AA`、`UD` 等组合出现。查看完整 `git status` 可以获得当前操作和下一步提示。忽略文件默认不出现在普通状态输出里。
+
+## 创建与切换分支
+
+明确当前提交就是起点，且工作区状态已经妥善处理后，创建新分支：
+
+```bash title="new-branch.sh"
+git switch -c topic/readme
+git branch
+```
+
+`topic/readme` 是示例分支名，已存在时 `-c` 会失败。切换已有分支使用 `git switch topic/readme`。旧写法 `git checkout -b topic/readme` 和 `git checkout topic/readme` 仍可用，`switch` 更明确地表达分支操作。
+
+新分支从当前 HEAD 创建，不会自动更新远程内容。`git branch` 列出本地分支并用 `*` 标记当前分支，`git branch -r` 查看本地记录的远程跟踪分支。
+
+切换分支不是自动保存工作区；部分未提交改动可能随切换保留，也可能因覆盖风险被 Git 拒绝。先提交或使用 [stash](/snippets/git/stash)，不要依靠切换动作隔离未提交修改。
+
+## 提交与首次推送
+
+确认 `README.md` 是这次准备提交的文件后，按文件选择暂存范围，再检查暂存区：
+
+```bash title="commit-selected-file.sh"
+git add README.md
+git diff --cached
+git commit -m "docs: update readme"
+```
+
+`git add` 更新暂存区，`git commit` 创建本地提交；它们都不会自动推送到服务器。暂存后又改动文件，需再次 `git add` 才会包含新改动。
+
+如果仓库配置了名为 `origin` 的远程，并且已经配置好访问权限，可首次推送该分支：
+
+```bash title="publish-branch.sh"
+git push -u origin topic/readme
+```
+
+`-u` 建立上游跟踪关系，后续一般可以使用 `git push`。推送会修改远程仓库状态，先核对 `git remote -v` 和分支名。
+
+`git pull` 包含获取远程更新和整合步骤，整合可能是 merge 或 rebase，取决于参数和配置。需要明确合并过程时，可以按[合并与冲突处理](/snippets/git/merge-conflicts)先 fetch 再 merge。

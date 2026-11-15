@@ -1,0 +1,53 @@
+---
+title: '用 dataclass 和 property 组织数据对象'
+description: '自动生成数据类方法，用 default_factory 隔离可变字段，并通过 property 和 hasattr 访问属性。'
+language: 'python'
+tags: 'Python,dataclass,property,对象'
+date: '2026-08-10'
+originTitle: 'Python 学习与速查索引'
+originHref: '/blog/python-review#常用装饰器'
+---
+
+```python title="data_models.py" showLineNumbers
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Tool:
+    name: str
+    tags: list[str] = field(default_factory=list)
+
+    @property
+    def display_name(self) -> str:
+        return self.name.title()
+
+    def get_display_name(self, prefix: str) -> str:
+        return f"{prefix}-{self.name}"
+
+
+tool = Tool("join")
+other = Tool("join")
+print(tool)
+print(tool == other)
+tool.tags.append("text")
+print(other.tags)
+print(tool.display_name)
+print(tool.get_display_name("tool"))
+print(hasattr(tool, "name"), hasattr(tool, "missing"))
+```
+
+## 数据字段与可变默认值
+
+适用 Python 3.10+，`dataclasses` 是标准库。`@dataclass` 默认根据字段生成 `__init__`、`__repr__`、`__eq__` 等方法，仍然可以定义普通方法。
+
+`field(default_factory=list)` 在每次创建实例时生成新的列表；不要为多个实例共享一个可变的默认列表。示例修改 `tool.tags` 后，`other.tags` 仍为空。
+
+生成的相等比较通常要求类型相同、所有参与比较的字段值相等，不是比较两个变量是否指向同一对象。类型标注本身也不会让 dataclass 自动校验输入，校验外部数据可参考 [Pydantic](/snippets/python/pydantic-validation)。
+
+## 计算属性与属性检查
+
+`@property` 让 `tool.display_name` 在读取时调用方法，使用时不加括号；普通方法仍需写 `tool.get_display_name("tool")`。这里只定义 getter，因此该属性只读；确实需要赋值行为时可再定义同名 setter。
+
+`property` 不会自动缓存结果，每次读取都会计算；它适合保持简单、可预期的属性访问。
+
+`hasattr(tool, "name")` 检查属性访问是否成功，返回布尔值。它也可能触发 property 的 getter，因此不等于只检查一个静态字段名；getter 抛出 `AttributeError` 时会返回 `False`，其他异常仍会传播。

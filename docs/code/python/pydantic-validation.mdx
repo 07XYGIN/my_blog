@@ -1,0 +1,69 @@
+---
+title: '用 Pydantic 校验输入数据'
+description: '建立运行时数据模型，用 Field 和字段校验器约束输入，并通过 SecretStr 隐藏敏感字段。'
+language: 'python'
+tags: 'Python,Pydantic,数据校验'
+date: '2026-08-10'
+originTitle: 'Python 学习与速查索引'
+originHref: '/blog/python-review#常用模块'
+---
+
+```python title="pydantic_validation.py" showLineNumbers
+from pydantic import BaseModel, EmailStr, Field, SecretStr, field_validator
+
+
+class User(BaseModel):
+    username: str = Field(min_length=2, max_length=20, description="用户名")
+    email: EmailStr
+    age: int = Field(ge=0, le=150)
+    password: SecretStr = Field(min_length=8)
+
+    @field_validator("username")
+    @classmethod
+    def username_must_not_contain_space(cls, value: str) -> str:
+        if " " in value:
+            raise ValueError("用户名不能包含空格")
+        return value
+
+
+user = User.model_validate({
+    "username": "gin",
+    "email": "gin@example.com",
+    "age": "25",
+    "password": "example-password",
+})
+print(user.age)
+print(user.model_dump_json())
+```
+
+## 依赖与模型行为
+
+适用 Python 3.10+、Pydantic v2。
+
+```powershell title="安装 Pydantic 与邮箱校验依赖" showLineNumbers
+uv add "pydantic[email]>=2,<3"
+```
+
+`EmailStr` 需要 `email-validator`，上面的 extra 会一起安装。它校验邮箱地址格式，不会证明邮箱存在或归当前用户所有。
+
+`BaseModel` 是运行时参与工作的 Python 类：创建实例时校验和解析输入，也能导出数据。它与 TypeScript 的 `interface` 不等价，后者主要用于静态检查，不负责运行时校验。
+
+Pydantic 默认会在允许时转换类型，例如示例中的 `"25"` 被转换为整数。需要拒绝这类转换时，可按字段使用 `Field(strict=True)` 或配置模型的严格模式。校验失败会抛出 `ValidationError`。
+
+## 字段约束与自定义规则
+
+| `Field` 参数 | 用途 |
+| --- | --- |
+| `min_length` / `max_length` | 限制字符串或集合的长度 |
+| `ge` / `le` | 大于等于 / 小于等于 |
+| `gt` / `lt` | 大于 / 小于 |
+| `pattern` | 限制字符串匹配的正则表达式 |
+| `description` | 字段说明，可用于生成文档 |
+
+`field_validator` 处理字段的额外规则，成功时必须返回值；不满足规则时抛出 `ValueError`。上面的校验器默认在字段已完成基础解析后执行。
+
+## 敏感字段与导出
+
+`SecretStr` 在显示和 JSON 序列化时通常输出 `**********`；确实需要原值时调用 `user.password.get_secret_value()`。它只是减少意外展示，不会加密内存中的值，也不能替代密码哈希。
+
+`model_dump()` 返回 Python 数据，可能包含 `SecretStr` 等对象；`model_dump_json()` 返回 JSON 字符串。对外响应若不需要密码字段，应明确排除它，而不是把掩码当成业务字段返回。

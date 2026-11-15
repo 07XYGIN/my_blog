@@ -1,0 +1,45 @@
+---
+title: '用 Rich 格式化终端输出'
+description: '给终端信息设置文字颜色、背景色和对齐，并避免动态文本被意外解析成标记。'
+language: 'python'
+tags: 'Python,Rich,终端'
+date: '2026-08-10'
+originTitle: 'Python 学习与速查索引'
+originHref: '/blog/python-review#常用模块'
+---
+
+```python title="rich_output.py" showLineNumbers
+from rich.console import Console
+
+console = Console()
+console.print("这是一条信息", style="bold blue")
+console.print("这是 RGB 文字颜色", style="rgb(0, 255, 0)")
+console.print("这是背景颜色", style="black on rgb(0, 255, 0)")
+console.print("对齐示例", style="bold red", justify="center")
+
+user_text = "[这是原始输入]"
+console.print(user_text, markup=False)
+```
+
+## 安装与样式
+
+适用 Python 3.10+，需要 Rich。
+
+```powershell title="安装 Rich" showLineNumbers
+uv add rich
+```
+
+`Console` 管理终端输出；`style` 是 Rich 的样式字符串，不是 CSS。空格可以组合字重、前景色和背景色。
+
+| 写法 | 效果 |
+| --- | --- |
+| `bold blue` | 加粗蓝字 |
+| `rgb(0, 255, 0)` | RGB 文字颜色 |
+| `on rgb(0, 255, 0)` | RGB 背景颜色 |
+| `black on white` | 白底黑字 |
+
+## 对齐与动态文本
+
+`justify` 支持 `left`、`center`、`right`、`full`。实际显示效果取决于终端宽度与颜色支持，终端输出的样式也不会自动成为日志文件的格式。
+
+`console.print` 默认会解释 Rich 标记，例如 `[bold]文本[/bold]`。显示用户输入或其他原始文本时，按需要设置 `markup=False`，避免方括号内容被当成样式标记。

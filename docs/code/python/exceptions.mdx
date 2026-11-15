@@ -1,0 +1,60 @@
+---
+title: '处理异常与主动报错'
+description: '按错误类型处理失败，理解 else 与 finally，并使用 raise 表达不满足的条件。'
+language: 'python'
+tags: 'Python,异常,基础语法'
+date: '2026-08-10'
+originTitle: 'Python 学习与速查索引'
+originHref: '/blog/python-review#基础语法'
+---
+
+```python title="exceptions_demo.py" showLineNumbers
+def divide_from_text(value: str) -> None:
+    try:
+        number = int(value)
+        result = 10 / number
+    except ZeroDivisionError:
+        print("除数不能为 0")
+    except ValueError as exc:
+        print(f"输入的不是整数：{exc}")
+    else:
+        print(f"结果：{result}")
+    finally:
+        print("本次计算结束")
+
+
+for text in ("2", "0", "hello"):
+    divide_from_text(text)
+```
+
+## 捕获失败与收尾
+
+适用 Python 3.10+，无需第三方依赖。
+
+| 部分 | 什么时候执行 |
+| --- | --- |
+| `try` | 执行可能失败的操作 |
+| `except ErrorType as exc` | 捕获匹配的异常，`exc` 为异常对象 |
+| `else` | `try` 没有抛出异常时执行 |
+| `finally` | 离开这组异常处理时执行，适合释放资源 |
+
+优先捕获能够处理的具体错误类型。一个宽泛的 `except Exception` 若只打印后继续，容易把程序错误当成成功结果；文件资源通常优先使用 `with` 管理。
+
+## 主动抛出与继续传播
+
+```python title="raise_demo.py" showLineNumbers
+def parse_positive_number(value: str) -> int:
+    try:
+        number = int(value)
+    except ValueError as exc:
+        raise ValueError("请输入整数") from exc
+
+    if number <= 0:
+        raise ValueError("数值必须大于 0")
+    return number
+
+
+print(parse_positive_number("3"))
+```
+
+`raise ValueError(...)` 表示输入不满足约束；`raise ... from exc` 在提供更明确错误信息的同时，保留原始原因。若在 `except` 中完成记录后要继续向外传播原异常，使用不带参数的 `raise`。

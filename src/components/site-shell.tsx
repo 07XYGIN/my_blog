@@ -6,7 +6,7 @@ import { Menu, Moon, Sun, X } from "lucide-react";
 import { useState } from "react";
 import { KnowledgeSearch } from "@/components/knowledge-search";
 import { useTheme } from "@/components/theme-provider";
-import type { SearchDocument } from "@/lib/posts";
+import type { KnowledgeDocument } from "@/lib/search";
 
 const links = [
   { href: "/", label: "首页" },
@@ -18,7 +18,7 @@ const links = [
   { href: "/about", label: "关于" },
 ];
 
-export function SiteHeader({ searchDocuments }: { searchDocuments: SearchDocument[] }) {
+export function SiteHeader({ searchDocuments }: { searchDocuments: KnowledgeDocument[] }) {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const [open, setOpen] = useState(false);

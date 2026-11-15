@@ -1,0 +1,69 @@
+---
+title: 'Docker：启动并维护本地 Redis 容器'
+description: '使用命名卷持久化 Redis 数据，仅映射本机端口，并查看容器、日志与停止重启状态。'
+language: 'bash'
+tags: 'Docker,Redis,容器'
+date: '2026-08-10'
+originTitle: 'Docker 官方文档：运行容器'
+originHref: 'https://docs.docker.com/reference/cli/docker/container/run/'
+---
+
+```bash title="local-redis.sh"
+docker pull redis:7.4
+docker volume create redis-data
+docker run -d --name redis-local -p 127.0.0.1:6379:6379 -v redis-data:/data redis:7.4 redis-server --appendonly yes
+docker exec redis-local redis-cli PING
+```
+
+## 运行前提与端口映射
+
+先安装并启动 Docker Engine 或 Docker Desktop。Windows 上需要使用 Linux 容器模式；执行 `docker version` 可以检查客户端是否能连接 Docker 服务。
+
+上面使用 Redis 官方 `7.4` 版本系列镜像，适用于本机开发。首次执行要求容器名 `redis-local` 未被占用、宿主机 6379 端口可用。`PING` 正常时返回 `PONG`，这里只给出预期结果，并非当前机器实测。
+
+| 参数 | 含义 |
+| --- | --- |
+| `-d` | 后台运行容器 |
+| `--name redis-local` | 指定后续操作使用的容器名 |
+| `-p 127.0.0.1:6379:6379` | 把容器 6379 映射到宿主机回环地址的 6379 |
+| `-v redis-data:/data` | 把命名卷挂载到 Redis 数据目录 |
+| `--appendonly yes` | 为 Redis 开启 AOF 持久化 |
+
+宿主机应用连接 `127.0.0.1:6379`。如果 6379 已被占用，创建容器时改为 `-p 127.0.0.1:6380:6379`，应用连接端口也要改为 6380。另一个容器的 `127.0.0.1` 指向它自己，容器之间连接需要另行配置 Docker 网络。
+
+这份本地示例没有设置密码，依靠明确的宿主机回环地址限制直接访问。不要改成面向公网的映射后继续沿用这份配置；部署到共享环境需要另行配置网络与 Redis ACL。Redis 允许哪些请求也取决于其实际运行配置。
+
+## 查看镜像、容器与日志
+
+```bash title="inspect-redis.sh"
+docker images
+docker ps
+docker ps -a
+docker logs --tail 100 redis-local
+docker exec redis-local redis-cli PING
+```
+
+`docker images` 列出镜像，`docker ps` 列出正在运行的**容器**，并不是列出正在运行的镜像。`docker ps -a` 包括已停止容器；容器创建后立即退出时，先查看状态和日志，不要反复创建同名容器。
+
+需要持续查看日志可以运行 `docker logs --follow --tail 100 redis-local`，用 `Ctrl+C` 退出日志跟随，不会因此停止 Redis 容器。`docker exec` 只能在正在运行的容器中执行命令。
+
+## 停止、启动与持久化
+
+按当前需要单独选择命令：
+
+```bash title="container-lifecycle.sh"
+# 停止正在运行的容器
+docker stop redis-local
+
+# 启动已经存在但已停止的容器
+docker start redis-local
+
+# 重启已有容器
+docker restart redis-local
+```
+
+`docker start` 复用已有容器和启动参数；再次运行 `docker run --name redis-local ...` 会因同名容器存在而失败。修改端口等创建参数通常需要明确规划容器重建。
+
+命名卷不依赖容器的临时可写层；普通停止和启动会继续使用同一个 `redis-data` 卷。删除卷会删除其中的数据，因此不能把“容器可以重建”理解成“卷也可以随意清理”。AOF 默认同步策略也不能替代备份或保证故障时完全不丢最近写入。
+
+`redis:7.4` 标签可能随着补丁更新而变化。需要严格复现时应记录实际镜像摘要；升级既有数据前，先查兼容说明并备份数据。

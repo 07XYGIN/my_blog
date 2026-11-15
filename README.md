@@ -2,6 +2,8 @@
 
 Gin 的个人技术博客。文章内容来自 `docs/` 目录下的 MDX 文件，可以按 `frontend`、`python`、`java`、`agent`、`database`、`other` 等主题继续细分。
 
+本轮文章合并、拆分、迁移的原因与去向见 [内容整理记录](CONTENT_REVIEW.md)。
+
 ## 技术栈
 
 - Next.js App Router、React、TypeScript
@@ -55,6 +57,8 @@ IS_SHOW: FALSE
 
 在 `docs/code/` 下新建 `.mdx` 文件：
 
+文件可以按任务放进子目录，例如 `docs/code/python/logging.mdx` 对应详情页 `/snippets/python/logging`。列表按 Python、数据库、Git 等技术主题分组，支持搜索、语言和主题筛选，只预览首个代码块；详情页展示全文和目录。每次新增条目后，构建会自动生成静态详情页，全站搜索也会收录内容。分组默认根据目录判断，也可用可选的 `category` 字段指定；首页笔记按文章分类集中展示。
+
 ````mdx
 ---
 title: 'FastAPI JWT 生成'
@@ -62,20 +66,26 @@ description: '登录成功后生成 access token 的基础写法。'
 language: 'python'
 tags: 'FastAPI,JWT,Auth'
 date: '2026-08-11'
+originTitle: 'Python 学习与速查索引'
+originHref: '/blog/python-review#常用模块'
 ---
 
 ```python title="jwt.py" showLineNumbers
-from datetime import datetime, timedelta
-from jose import jwt
+import os
+from datetime import datetime, timedelta, timezone
+
+import jwt
 
 def create_access_token(data: dict):
     payload = data.copy()
-    payload["exp"] = datetime.utcnow() + timedelta(minutes=30)
-    return jwt.encode(payload, "secret", algorithm="HS256")
+    payload["exp"] = datetime.now(timezone.utc) + timedelta(minutes=30)
+    return jwt.encode(payload, os.environ["JWT_SECRET_KEY"], algorithm="HS256")
 ```
 ````
 
 ## MDX 组件与语法
+
+速查的 `originTitle`、`originHref` 是可选来源字段，填写时应指向已公开的笔记或章节。详情目录从正文标题自动生成；条目正文建议先放最常用的完整代码，再说明依赖、调用方式和使用边界。
 
 文章可以直接使用下面的组件，无需在 MDX 中导入。组件列表由 `src/components/mdx/mdx-blocks.tsx` 维护。
 
@@ -168,6 +178,8 @@ const next = count + 1
 
 支持文件名、复制按钮、行号、指定行高亮和 Shiki 语法高亮。
 
+工具栏的展开按钮使用 shadcn Dialog 展示完整代码，支持换行、复制与关闭；文章、速查预览和详情页共用这一实现。
+
 ### Tabs
 
 ```mdx
@@ -251,9 +263,12 @@ import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader,
 
 ```bash
 pnpm lint
+node --test tests/*.test.mjs
 pnpm build
 pnpm build:static
 ```
+
+内容校验会解析全部 MDX，检查公开文章、速查来源、目录锚点和项目关联。已安装 Python 时还会解析 Python 代码块；未安装时该项明确跳过，不会连接数据库或调用模型。
 
 ## 部署
 

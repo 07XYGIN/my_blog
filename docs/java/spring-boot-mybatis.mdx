@@ -1,0 +1,581 @@
+---
+title: 'Spring Boot 与 MyBatis：请求、查询和错误处理'
+description: '搭建请求到数据库的分层链路，串起 DTO 校验、MyBatis XML、分页和正确的 HTTP 错误响应。'
+category: 'Java'
+tags: 'Spring Boot,MyBatis,分页,异常处理'
+date: '2026-08-05'
+readTime: '18 分钟'
+author: 'Gin'
+IS_SHOW: true
+---
+
+本文使用 Java 17、Spring Boot 3.5.x、MyBatis Starter 3.0.x 与 MySQL 8，统一包名 `com.example.notes`。下面的 POM 固定一组示例版本，不代表这些依赖的最新版本；Spring Boot 4 的 starter、Jackson 与相关 API 不能直接混入这套示例。
+
+本文负责 Web 和数据库主线。[鉴权](/blog/spring-security-jwt) 与 [Redis、ID](/blog/spring-redis-identifiers) 分开查阅；全部主题入口在 [学习索引](/blog/java-spring-notes)。
+
+## 环境、依赖与目录
+
+```xml title="pom.xml" showLineNumbers
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.0</version>
+        <relativePath/>
+    </parent>
+    <groupId>com.example</groupId>
+    <artifactId>notes</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <properties>
+        <java.version>17</java.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mybatis.spring.boot</groupId>
+            <artifactId>mybatis-spring-boot-starter</artifactId>
+            <version>3.0.5</version>
+        </dependency>
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+```
+
+Spring Boot 官方 starter 的版本由 parent 管理，MyBatis 等第三方集成依赖单独选择兼容版本。Starter 3.0.x 用于相应的 Boot 3 环境；升级到 Boot 4 时应整体检查兼容矩阵，不能只换一个依赖版本。可从 [Maven Central](https://central.sonatype.com/) 查找依赖，并优先阅读项目自己的兼容说明。
+
+```text title="目录结构" showLineNumbers
+src/main/java/com/example/notes/
+  NotesApplication.java
+  common/Result.java
+  common/BusinessException.java
+  common/GlobalExceptionHandler.java
+  user/UserDto.java
+  user/UserMapper.java
+  user/UserService.java
+  user/UserController.java
+src/main/resources/
+  application.yml
+  mapper/UserMapper.xml
+```
+
+所有 Java 代码块各自对应一个文件。分页和一对多是后面的增量示例，先让基础链路工作，再选择加入它们。
+
+```java title="NotesApplication.java" showLineNumbers
+package com.example.notes;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class NotesApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(NotesApplication.class, args);
+    }
+}
+```
+
+```yaml title="application.yml" showLineNumbers
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+```
+
+运行前配置 `DB_URL`（如本地 MySQL 的 JDBC URL）、`DB_USER`、`DB_PASSWORD` 并建立数据库。缺失必填环境变量时应启动失败，避免示例密码被误当成部署配置。使用安装好的 Maven 执行 `mvn spring-boot:run`。
+
+```sql title="schema.sql：在准备好的练习数据库执行" showLineNumbers
+CREATE TABLE users (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_name VARCHAR(80) NOT NULL,
+    age INT NOT NULL
+);
+```
+
+## 请求参数、DTO 与校验
+
+DTO 是数据传输对象，用于约定层与层之间传递的数据形状；DTO 本身不必带校验，校验来自 Jakarta Validation 等组件。此处用 `record` 减少只读 DTO 的样板代码，MyBatis 3.5.x 支持对应的构造器映射。
+
+```java title="user/UserDto.java" showLineNumbers
+package com.example.notes.user;
+
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+public record UserDto(
+        Long id,
+        @NotBlank(message = "姓名不能为空") String userName,
+        @NotNull(message = "年龄不能为空")
+        @Min(value = 0, message = "年龄不能小于 0")
+        @Max(value = 150, message = "年龄不能超过 150") Integer age
+) {}
+```
+
+| 注解 | 作用 |
+| --- | --- |
+| `@RestController` | 注册 MVC 控制器，并将返回值交给消息转换器处理 |
+| `@RequestMapping` | 声明路径等请求映射条件，常放在类上定义公共前缀 |
+| `@RequestParam` | 读取查询参数或表单参数，不限于 GET 请求 |
+| `@PathVariable` | 读取路径模板里的变量 |
+| `@RequestBody` | 根据 Content-Type 通过消息转换器读取请求体，常用于 JSON |
+| `@Valid` | 触发嵌套对象的 Bean Validation；只写字段约束不会自动校验请求体 |
+| `@NotNull` / `@NotBlank` | 分别约束非空、非空白字符串 |
+| `@CrossOrigin` | 配置跨域访问策略，允许的来源应与实际调用方对应 |
+
+可变 JavaBean 同样可作 DTO；Lombok 的 `@Data` 会生成访问器、相等比较等方法及所需构造器，但不是任意构造器，也不会自动执行字段校验。这组示例不依赖 Lombok。
+
+## Controller、Service 与 Mapper
+
+Controller 负责 HTTP 输入输出；Service 处理业务规则和事务；Mapper 负责 SQL。用构造器明确依赖，单构造器无需额外 `@Autowired`。
+
+```java title="user/UserMapper.java" showLineNumbers
+package com.example.notes.user;
+
+import java.util.List;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+@Mapper
+public interface UserMapper {
+    UserDto selectById(@Param("id") long id);
+    List<UserDto> selectByCondition(@Param("name") String name);
+    int insertUser(UserDto user);
+    int updateUser(UserDto user);
+    int deleteUser(@Param("id") long id);
+}
+```
+
+```java title="user/UserService.java" showLineNumbers
+package com.example.notes.user;
+
+import com.example.notes.common.BusinessException;
+import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class UserService {
+    private final UserMapper mapper;
+
+    public UserService(UserMapper mapper) {
+        this.mapper = mapper;
+    }
+
+    public UserDto find(long id) {
+        UserDto user = mapper.selectById(id);
+        if (user == null) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, "用户不存在");
+        }
+        return user;
+    }
+
+    public List<UserDto> list(String name) {
+        return mapper.selectByCondition(name);
+    }
+
+    @Transactional
+    public void create(UserDto user) {
+        mapper.insertUser(new UserDto(null, user.userName(), user.age()));
+    }
+
+    @Transactional
+    public void update(long id, UserDto user) {
+        find(id);
+        mapper.updateUser(new UserDto(id, user.userName(), user.age()));
+    }
+
+    @Transactional
+    public void delete(long id) {
+        if (mapper.deleteUser(id) == 0) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, "用户不存在");
+        }
+    }
+}
+```
+
+```java title="user/UserController.java" showLineNumbers
+package com.example.notes.user;
+
+import com.example.notes.common.Result;
+import jakarta.validation.Valid;
+import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/users")
+public class UserController {
+    private final UserService service;
+
+    public UserController(UserService service) {
+        this.service = service;
+    }
+
+    @GetMapping
+    public Result<List<UserDto>> list(@RequestParam(required = false) String name) {
+        return Result.success(service.list(name));
+    }
+
+    @GetMapping("/{id}")
+    public Result<UserDto> get(@PathVariable("id") long id) {
+        return Result.success(service.find(id));
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public Result<Void> create(@Valid @RequestBody UserDto user) {
+        service.create(user);
+        return Result.success(null);
+    }
+
+    @PutMapping("/{id}")
+    public Result<Void> update(@PathVariable("id") long id, @Valid @RequestBody UserDto user) {
+        service.update(id, user);
+        return Result.success(null);
+    }
+
+    @DeleteMapping("/{id}")
+    public Result<Void> delete(@PathVariable("id") long id) {
+        service.delete(id);
+        return Result.success(null);
+    }
+}
+```
+
+例如 `GET /users?name=Gin` 使用查询参数，`GET /users/1` 使用路径参数。新增和更新的 JSON 请求体可写为 `{"userName":"Gin","age":25}`，更新以路径 ID 为准。
+
+`@Transactional` 通常通过 Spring 代理生效；同类内部直接调用不经过代理的方法不能据此开启新事务。默认会因 `RuntimeException` 回滚，受检异常的回滚策略需要明确配置。
+
+## MyBatis XML 与绑定参数
+
+```xml title="mapper/UserMapper.xml" showLineNumbers
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.notes.user.UserMapper">
+    <resultMap id="userMap" type="com.example.notes.user.UserDto">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="user_name" javaType="java.lang.String"/>
+            <arg column="age" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <select id="selectById" resultMap="userMap">
+        SELECT id, user_name, age FROM users WHERE id = #{id}
+    </select>
+
+    <select id="selectByCondition" resultMap="userMap">
+        SELECT id, user_name, age FROM users
+        <where>
+            <if test="name != null and name != ''">
+                user_name = #{name}
+            </if>
+        </where>
+        ORDER BY id
+    </select>
+
+    <insert id="insertUser">
+        INSERT INTO users (user_name, age) VALUES (#{userName}, #{age})
+    </insert>
+    <update id="updateUser">
+        UPDATE users SET user_name = #{userName}, age = #{age} WHERE id = #{id}
+    </update>
+    <delete id="deleteUser">
+        DELETE FROM users WHERE id = #{id}
+    </delete>
+</mapper>
+```
+
+`namespace` 对应 Mapper 接口完整名称，语句 `id` 对应方法名；`mapper-locations` 用来找到 XML。`resultType` 适合简单映射，`resultMap` 可以明确构造参数、别名和嵌套结构。
+
+`#{...}` 绑定参数值，`@Param` 只负责给参数命名。`${...}` 直接拼接文本，不能接收未经限制的用户输入；表名、排序字段等不能绑定的位置，应先由代码映射到固定白名单。
+
+## 响应格式与真实 HTTP 状态
+
+响应体里的 `code` 不会改变 HTTP 状态。成功包装保留业务码 `200`，新增接口仍通过 `@ResponseStatus` 返回 HTTP 201；失败通过 `ResponseEntity` 或 MVC 的异常处理机制设置对应 HTTP 状态。
+
+```java title="common/Result.java" showLineNumbers
+package com.example.notes.common;
+
+public record Result<T>(int code, String message, T data) {
+    public static <T> Result<T> success(T data) {
+        return new Result<>(200, "操作成功", data);
+    }
+
+    public static Result<Void> fail(int code, String message) {
+        return new Result<>(code, message, null);
+    }
+}
+```
+
+```java title="common/BusinessException.java" showLineNumbers
+package com.example.notes.common;
+
+import org.springframework.http.HttpStatus;
+
+public class BusinessException extends RuntimeException {
+    private final HttpStatus status;
+
+    public BusinessException(HttpStatus status, String message) {
+        super(message);
+        if (!status.is4xxClientError() && !status.is5xxServerError()) {
+            throw new IllegalArgumentException("业务异常必须对应错误状态");
+        }
+        this.status = status;
+    }
+
+    public HttpStatus getStatus() {
+        return status;
+    }
+}
+```
+
+下面继承 `ResponseEntityExceptionHandler`，保留 MVC 对请求体解析、参数类型等标准异常的状态处理，定制校验失败的响应。它不会拦截 Security 过滤器链中的所有认证异常，鉴权页另有对应处理器。
+
+```java title="common/GlobalExceptionHandler.java" showLineNumbers
+package com.example.notes.common;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<Result<Void>> handleBusiness(BusinessException exception) {
+        return ResponseEntity.status(exception.getStatus())
+                .body(Result.fail(exception.getStatus().value(), exception.getMessage()));
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException exception, HttpHeaders headers,
+            HttpStatusCode status, WebRequest request) {
+        FieldError error = exception.getBindingResult().getFieldError();
+        String message = error == null ? "参数校验失败" : error.getDefaultMessage();
+        return handleExceptionInternal(exception, Result.fail(400, message),
+                headers, HttpStatus.BAD_REQUEST, request);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Result<Void>> handleUnexpected(Exception exception) {
+        log.error("未处理的服务器异常", exception);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Result.fail(500, "服务器内部错误"));
+    }
+}
+```
+
+`MethodArgumentNotValidException` 主要对应 `@Valid @RequestBody` 等参数对象校验，不能概括为“所有校验错误”；直接参数约束、方法校验和绑定失败可能是其他异常。客户端不应收到内部异常堆栈或数据库错误原文。
+
+## 分页：PageHelper 的作用范围
+
+原生 MyBatis 可以自行写 `LIMIT/OFFSET`。若选择 PageHelper，下面显式注册核心插件，避免把另一代 Boot 的 starter 直接放入当前工程。
+
+```xml title="pom.xml：额外依赖" showLineNumbers
+<dependency>
+    <groupId>com.github.pagehelper</groupId>
+    <artifactId>pagehelper</artifactId>
+    <version>6.1.0</version>
+</dependency>
+```
+
+```java title="config/PageHelperConfig.java" showLineNumbers
+package com.example.notes.config;
+
+import com.github.pagehelper.PageInterceptor;
+import java.util.Properties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class PageHelperConfig {
+    @Bean
+    public PageInterceptor pageInterceptor() {
+        PageInterceptor interceptor = new PageInterceptor();
+        Properties properties = new Properties();
+        properties.setProperty("helperDialect", "mysql");
+        properties.setProperty("reasonable", "false");
+        interceptor.setProperties(properties);
+        return interceptor;
+    }
+}
+```
+
+MyBatis Starter 会把容器中的 MyBatis `Interceptor` 加入会话工厂。若项目已使用 PageHelper starter 或自行构建 `SqlSessionFactory`，不要重复注册。
+
+```java title="user/PageResult.java" showLineNumbers
+package com.example.notes.user;
+
+import com.github.pagehelper.PageInfo;
+import java.util.List;
+
+public record PageResult<T>(int pageNum, int pageSize, long total, List<T> list) {
+    public static <T> PageResult<T> from(PageInfo<T> info) {
+        return new PageResult<>(info.getPageNum(), info.getPageSize(),
+                info.getTotal(), info.getList());
+    }
+}
+```
+
+```java title="user/UserPageController.java" showLineNumbers
+package com.example.notes.user;
+
+import com.example.notes.common.BusinessException;
+import com.example.notes.common.Result;
+import com.github.pagehelper.Page;
+import com.github.pagehelper.PageHelper;
+import com.github.pagehelper.PageInfo;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/users")
+public class UserPageController {
+    private final UserMapper mapper;
+
+    public UserPageController(UserMapper mapper) {
+        this.mapper = mapper;
+    }
+
+    @GetMapping("/page")
+    public Result<PageResult<UserDto>> page(
+            @RequestParam(defaultValue = "1") int pageNum,
+            @RequestParam(defaultValue = "10") int pageSize,
+            @RequestParam(required = false) String name) {
+        if (pageNum < 1 || pageSize < 1 || pageSize > 100) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "分页参数不合法");
+        }
+        try (Page<UserDto> ignored = PageHelper.startPage(pageNum, pageSize)) {
+            PageInfo<UserDto> info = new PageInfo<>(mapper.selectByCondition(name));
+            return Result.success(PageResult.from(info));
+        }
+    }
+}
+```
+
+`startPage` 通过当前线程设置分页上下文，紧接着的查询应当正是目标查询；`try-with-resources` 也能在未执行查询或发生异常时清理上下文。此处将参数和调用放在一个短控制器中便于展示；有额外业务规则时把查询放回 Service，不要在分页设置与查询之间插入其他数据库操作。
+
+## 一对多映射与 N+1
+
+一对多关系需要额外的数据结构。以下是基于上面 Mapper 的独立增量：加入订单 DTO 和用户聚合对象、增加 Mapper 方法和 XML，数据库同时提供 `orders` 表。
+
+```java title="user/OrderDto.java" showLineNumbers
+package com.example.notes.user;
+
+import java.math.BigDecimal;
+
+public record OrderDto(Long id, Long userId, BigDecimal amount) {}
+```
+
+```java title="user/UserWithOrders.java" showLineNumbers
+package com.example.notes.user;
+
+import java.util.List;
+
+public class UserWithOrders {
+    private Long id;
+    private String userName;
+    private List<OrderDto> orders;
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getUserName() { return userName; }
+    public void setUserName(String userName) { this.userName = userName; }
+    public List<OrderDto> getOrders() { return orders; }
+    public void setOrders(List<OrderDto> orders) { this.orders = orders; }
+}
+```
+
+```java title="user/OrderMapper.java" showLineNumbers
+package com.example.notes.user;
+
+import java.util.List;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+@Mapper
+public interface OrderMapper {
+    List<OrderDto> selectByUserId(@Param("userId") long userId);
+}
+```
+
+```xml title="mapper/OrderMapper.xml" showLineNumbers
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.notes.user.OrderMapper">
+    <resultMap id="orderMap" type="com.example.notes.user.OrderDto">
+        <constructor>
+            <idArg column="id" javaType="java.lang.Long"/>
+            <arg column="user_id" javaType="java.lang.Long"/>
+            <arg column="amount" javaType="java.math.BigDecimal"/>
+        </constructor>
+    </resultMap>
+    <select id="selectByUserId" resultMap="orderMap">
+        SELECT id, user_id, amount FROM orders WHERE user_id = #{userId} ORDER BY id
+    </select>
+</mapper>
+```
+
+在 `UserMapper` 增加 `UserWithOrders selectWithOrders(@Param("id") long id);`，在现有 `UserMapper.xml` 的 `mapper` 元素内加入：
+
+```xml title="UserMapper.xml：新增映射和查询" showLineNumbers
+<resultMap id="userWithOrdersMap" type="com.example.notes.user.UserWithOrders">
+    <id property="id" column="id"/>
+    <result property="userName" column="user_name"/>
+    <collection property="orders" column="id" fetchType="eager"
+                select="com.example.notes.user.OrderMapper.selectByUserId"/>
+</resultMap>
+<select id="selectWithOrders" resultMap="userWithOrdersMap">
+    SELECT id, user_name FROM users WHERE id = #{id}
+</select>
+```
+
+`column="id"` 把父行 ID 交给子查询。这种嵌套查询会在查到一个用户后再查其订单；如果一次加载 N 个用户，会产生 N 次子查询。列表可选择批量加载订单再按用户分组，或使用 JOIN 和嵌套结果映射。JOIN 不会自动消除映射错误，嵌套 `id`、列别名和分页粒度都需要明确；对一对多 JOIN 直接分页，截取的可能是连接行而不是完整用户。

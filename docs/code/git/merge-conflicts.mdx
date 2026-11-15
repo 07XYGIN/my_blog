@@ -1,0 +1,70 @@
+---
+title: 'Git：合并分支与处理冲突'
+description: '先获取远程分支，再合并更新；区分普通 merge 冲突、rebase 冲突与 stash 恢复冲突。'
+language: 'bash'
+tags: 'Git,合并,冲突处理'
+date: '2026-07-08'
+originTitle: 'Git 官方文档：merge'
+originHref: 'https://git-scm.com/docs/git-merge'
+---
+
+```bash title="merge-remote-main.sh"
+# 先确认工作区干净，且当前分支是接收合并的一方
+git status --short
+git fetch origin
+git merge origin/main
+```
+
+## 合并前提与方向
+
+需要在 Git 仓库中，存在 `origin` 远程及其 `main` 分支，并已配置访问权限。执行前先处理未提交改动，让工作区和暂存区干净。首段最后一行会把 `origin/main` 合入**当前分支**，不是把当前分支推送到 main。
+
+`git fetch origin` 更新本地的远程跟踪记录，不修改当前工作文件。`git merge origin/main` 才进行整合。分支名并不固定，仓库使用 `master` 或其他主分支时需替换。
+
+合并本地分支的写法是 `git merge topic/readme`，同样合入当前分支。合并可能直接快进、创建合并提交，也可能因冲突而暂停。
+
+## 解决普通合并冲突
+
+冲突发生后先运行 `git status`。不要只找文本标记：删除/修改、二进制文件等冲突可能没有同样的正文标记。
+
+```text title="冲突标记示意"
+<<<<<<< HEAD
+print("current branch")
+=======
+print("incoming branch")
+>>>>>>> origin/main
+```
+
+普通 merge 中，上半部分是当前分支的内容，下半部分是合入分支的内容。阅读两边的目的后编辑成最终版本，删除所有冲突标记；最终代码可以取一边，也可以综合两边逻辑。
+
+假设冲突文件为 `app.py`，修改并检查完成后执行：
+
+```bash title="finish-merge.sh"
+git add app.py
+git diff --cached
+git status
+git merge --continue
+```
+
+所有冲突文件都需要处理并暂存。`git add` 表示把选定内容作为解决结果，不会判断代码逻辑是否正确。继续合并前仍需运行项目必要检查，确认没有误删功能。
+
+## 中止及其他冲突类型
+
+如果决定放弃正在进行的普通 merge，使用：
+
+```bash title="abort-merge.sh"
+git merge --abort
+```
+
+该命令适用于尚未完成的合并。合并前带着未提交改动时，Git 不保证能够完整重建原状态，这也是先整理工作区的原因。已提交的合并不能用 `merge --abort` 撤销，需要另外评估撤销方式。
+
+冲突恢复命令取决于当前操作：
+
+| 当前操作 | 处理并暂存后 | 放弃操作 |
+| --- | --- | --- |
+| `git merge` | `git merge --continue` | `git merge --abort` |
+| `git rebase` | `git rebase --continue` | `git rebase --abort` |
+| `git revert` | `git revert --continue` | `git revert --abort` |
+| `git stash apply` / `pop` | 手动处理并按需暂存、提交 | 没有对应的 `stash --abort` |
+
+rebase 中“ours/theirs”的含义与普通 merge 的直觉容易不同，不要直接照搬一键选择某一边的命令。stash 冲突也不能用 `git merge --abort` 当通用撤销。先读 `git status` 判断操作类型，再决定如何继续。

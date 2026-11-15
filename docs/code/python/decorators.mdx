@@ -1,0 +1,84 @@
+---
+title: '编写与配置函数装饰器'
+description: '用不定参数转发调用，通过 wraps 保留函数信息，并理解带配置装饰器的三层结构。'
+language: 'python'
+tags: 'Python,装饰器,args,kwargs'
+date: '2026-08-10'
+originTitle: 'Python 学习与速查索引'
+originHref: '/blog/python-review#常用装饰器'
+---
+
+```python title="decorator_demo.py" showLineNumbers
+from functools import wraps
+
+
+def log_calls(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        print(f"调用 {func.__name__}: args={args}, kwargs={kwargs}")
+        return func(*args, **kwargs)
+    return wrapper
+
+
+@log_calls
+def create_user(name: str, age: int, city: str = "Beijing", vip: bool = False) -> dict:
+    return {"name": name, "age": age, "city": city, "vip": vip}
+
+
+print(create_user("gin", 18, city="Shanghai", vip=True))
+print(create_user.__name__)
+```
+
+## 不定参数与调用转发
+
+适用 Python 3.10+，仅使用标准库。`*args` 收集位置参数为元组，`**kwargs` 收集关键字参数为字典；它们的名称是惯例，参数并不要求属于同一种类型。
+
+```python title="variable_arguments.py" showLineNumbers
+def concat(*strings: str) -> str:
+    return "".join(strings)
+
+
+def request_summary(url: str, **options) -> str:
+    timeout = options.get("timeout", 10)
+    method = options.get("method", "GET")
+    headers = options.get("headers", {})
+    return f"url={url}, timeout={timeout}, method={method}, headers={headers}"
+
+
+print(concat("a", "b"))
+print(request_summary("https://example.com", method="POST", timeout=5))
+```
+
+定义函数时，星号负责收集参数；调用 `func(*args, **kwargs)` 时，星号把已有元组和字典展开回原来的调用形式。
+
+## 装饰器与返回值
+
+`@log_calls` 等价于在定义后执行 `create_user = log_calls(create_user)`。装饰器接收原函数，返回包装函数，在不修改原函数主体的情况下添加调用前后的工作。
+
+包装函数应返回原函数的结果，避免原有调用方得到 `None`。`@wraps(func)` 保留名称、文档等元信息，也提供对被包装函数的引用。这里用打印演示调用过程；实际日志应按字段选择要记录的参数。
+
+## 带配置的三层结构
+
+```python title="configured_decorator.py" showLineNumbers
+from functools import wraps
+
+
+def log_with_options(**options):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            print(f"{options.get('label', '调用')}: {func.__name__}")
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+@log_with_options(label="任务")
+def run_task() -> str:
+    return "执行成功"
+
+
+print(run_task())
+```
+
+外层接收配置，中层接收函数，内层处理每次调用。外层与中层通常在定义函数时执行，内层在调用时执行。示例只配置日志标签，不包含重试或延迟行为；包装 `async def` 时，需要改用异步包装函数并 `await` 原函数。

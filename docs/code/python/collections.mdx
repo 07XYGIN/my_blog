@@ -1,0 +1,62 @@
+---
+title: '遍历与整理集合数据'
+description: '用 enumerate 获取索引，读取和更新字典，解包元组，并区分值比较与对象身份。'
+language: 'python'
+tags: 'Python,集合,基础语法'
+date: '2026-08-10'
+originTitle: 'Python 学习与速查索引'
+originHref: '/blog/python-review#基础语法'
+---
+
+```python title="collections_demo.py" showLineNumbers
+fruits = ["苹果", "香蕉", "橙子"]
+for index, fruit in enumerate(fruits, start=1):
+    print(f"{index}: {fruit}")
+
+user: dict[str, int] = {"age": 17}
+print(user.get("height", 0))
+user.update({"age": 18, "height": 180})
+print(user["age"])
+
+first, second = ("a", "b")
+print(first, second)
+```
+
+## 读取与修改数据
+
+适用 Python 3.10+，无需第三方依赖。
+
+| 操作 | 行为 |
+| --- | --- |
+| `enumerate(iterable, start=0)` | 同时取得索引和值，接受列表、元组、字符串等可迭代对象 |
+| `user.get("age")` | 读取值，不存在返回 `None` |
+| `user.get("height", 0)` | 读取值，不存在返回指定默认值 |
+| `user["age"]` | 读取值，不存在抛出 `KeyError` |
+| `user.update({"age": 18})` | 原地插入或覆盖键值，方法返回 `None` |
+| `first, second = values` | 按顺序解包，值的数量必须与变量数量一致 |
+
+变量名避免使用 `dict`、`list`、`str`、`object` 等内置名称，以免遮蔽内置类型和函数。
+
+## 字符串与类型转换
+
+```python title="conversion_demo.py" showLineNumbers
+name = "gin smith".title()
+age = int("18")
+label = str(age)
+print(name, age, label)
+```
+
+`title()` 返回按单词首字母大写处理的新字符串，不修改原字符串，也不是通用的人名格式化规则。`int("18.5")` 会抛出 `ValueError`；转换外部输入时应考虑异常处理。
+
+## 比较与逻辑判断
+
+| 表达式 | 用途 |
+| --- | --- |
+| `a == b` / `a != b` | 比较值是否相等 |
+| `a is b` / `a is not b` | 比较是否为同一个对象，检查 `None` 时常用 `is None` |
+| `value in items` / `value not in items` | 检查成员关系 |
+| `a and b` | 前者为真时才计算后者 |
+| `a or b` | 前者为假时才计算后者 |
+| `not value` | 对真值取反，结果为布尔值 |
+
+`and` 和 `or` 会返回某个操作数，不保证返回 `bool`。例如 `"" or "默认值"` 的结果是字符串；需要判断对象的内容时，不要用 `is` 代替 `==`。

@@ -1,0 +1,47 @@
+---
+title: 'Git：用 revert 撤销已提交改动'
+description: '保留历史并创建反向提交，区分普通提交、冲突恢复以及合并提交的撤销。'
+language: 'bash'
+tags: 'Git,revert,版本控制'
+date: '2026-07-08'
+originTitle: 'Git 官方文档：revert'
+originHref: 'https://git-scm.com/docs/git-revert'
+---
+
+```bash title="revert-last-ordinary-commit.sh"
+# 仅在工作区干净、HEAD 为待撤销的普通提交时使用
+git status --short
+git log -1 --oneline
+git show --stat HEAD
+git revert HEAD
+```
+
+## 撤销前确认目标
+
+首段适用于：工作区与暂存区干净，并且已经确认 **HEAD 是要撤销的普通提交**。最后一行会修改文件并创建一个新的反向提交，通常会打开提交信息编辑器。不要在尚未核对目标时整段执行。
+
+`git revert` 保留原提交历史，把指定提交的修改反向应用。它适合已经共享到远程的提交，因为通常不需要改写其他人的历史。
+
+撤销较早的普通提交时，用 `git log --oneline` 找到目标，再把 `git revert HEAD` 中的 `HEAD` 替换为该提交哈希。较早提交可能已被后续代码依赖，命令成功也不代表功能仍正确，需要重新验证。
+
+## 冲突后的继续与中止
+
+反向补丁无法直接应用时，Git 会暂停并报告冲突。先运行 `git status`，编辑文件形成最终内容，再逐个暂存。假设只有 `app.py` 冲突：
+
+```bash title="finish-revert.sh"
+git add app.py
+git diff --cached
+git revert --continue
+```
+
+需要放弃当前尚未完成的 revert 时执行 `git revert --abort`。如果反向提交已经创建完成，`--abort` 不会再撤销它；可以评估是否对这个反向提交再做一次 revert。
+
+反向提交仍是本地提交，检查通过后再按正常协作流程推送。`revert` 不用于恢复未提交文件，也不能替代数据迁移或线上配置的回退。
+
+## 合并提交需要单独判断
+
+合并提交有多个父提交，直接 `git revert` 往往会要求指定 `-m`。`-m 1` 的含义是把第一个父提交当作主线，**不是“撤销第一个提交”**；不能未经确认就固定使用。
+
+可以先用 `git show --no-patch --pretty=raw HEAD` 检查合并提交的父节点，并查看分支图。撤销合并只反向应用那次合并带来的树内容，不会从历史中删除合并关系；后续再次合并同一分支可能不会重新带回那些改动。
+
+因此这页首段只覆盖普通提交。合并提交的撤销需要明确主线、后续提交依赖以及是否计划重新合并，再决定具体命令。

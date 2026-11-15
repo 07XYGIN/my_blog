@@ -2,15 +2,20 @@ import "server-only";
 
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { tocFromSource, type TocItem } from "@/lib/mdx-content";
 
 export type CodeSnippet = {
   slug: string;
   title: string;
   description: string;
+  category?: string;
   language: string;
   tags: string[];
   date: string;
+  originTitle?: string;
+  originHref?: string;
   source: string;
+  toc: TocItem[];
 };
 
 const codeDirectory = path.join(process.cwd(), "docs", "code");
@@ -53,7 +58,7 @@ function titleFromSlug(slug: string) {
 }
 
 function inferLanguage(source: string) {
-  return source.match(/```([\w-]+)/)?.[1] ?? "text";
+  return source.match(/^(?:`{3,}|~{3,})([\w-]+)/m)?.[1] ?? "text";
 }
 
 function toSnippet(slug: string, metadata: Record<string, string>, source: string): CodeSnippet {
@@ -61,10 +66,14 @@ function toSnippet(slug: string, metadata: Record<string, string>, source: strin
     slug,
     title: metadata.title ?? titleFromSlug(slug),
     description: metadata.description ?? "",
+    category: metadata.category?.trim() || undefined,
     language: metadata.language ?? inferLanguage(source),
     tags: (metadata.tags ?? "").split(",").map((tag) => tag.trim()).filter(Boolean),
     date: metadata.date ?? "",
+    originTitle: metadata.originTitle,
+    originHref: metadata.originHref,
     source,
+    toc: tocFromSource(source),
   };
 }
 
@@ -77,4 +86,8 @@ export async function getCodeSnippets(): Promise<CodeSnippet[]> {
   }));
 
   return snippets.sort((a, b) => b.date.localeCompare(a.date) || a.title.localeCompare(b.title, "zh-Hans-CN"));
+}
+
+export async function getCodeSnippet(slug: string): Promise<CodeSnippet | null> {
+  return (await getCodeSnippets()).find((snippet) => snippet.slug === slug) ?? null;
 }

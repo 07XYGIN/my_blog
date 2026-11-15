@@ -1,0 +1,52 @@
+---
+title: '为函数和数据添加类型标注'
+description: '标注集合、可选值与联合类型，使用 Literal 限定取值，并用 Annotated 携带元数据。'
+language: 'python'
+tags: 'Python,typing,类型标注'
+date: '2026-08-10'
+originTitle: 'Python 学习与速查索引'
+originHref: '/blog/python-review#基础语法'
+---
+
+```python title="type_hints_demo.py" showLineNumbers
+from typing import Annotated, Literal
+
+
+def get_full_name(first_name: str, last_name: str) -> str:
+    return first_name.title() + " " + last_name.title()
+
+
+names: list[str] = ["gin", "alex"]
+scores: dict[str, int] = {"gin": 90}
+point: tuple[int, int] = (10, 20)
+tags: set[str] = {"Python", "typing"}
+nickname: str | None = None
+user_id: str | int = 1
+mode: Literal["read", "write"] = "read"
+username: Annotated[str, "显示名称"] = "gin"
+
+print(get_full_name(names[0], "smith"), scores, point, tags, nickname, user_id, mode, username)
+```
+
+## 常见标注与版本
+
+适用 Python 3.10+，`typing` 是标准库。3.9 起集合可直接写 `list[str]`、`dict[str, int]`；3.10 起可用 `str | None` 和 `str | int`。
+
+| 当前写法 | 兼容旧版本的写法 | 含义 |
+| --- | --- | --- |
+| `str \| None` | `Optional[str]` | 字符串或空值 |
+| `str \| int` | `Union[str, int]` | 字符串或整数 |
+| `list[str]` | `List[str]` | 字符串列表 |
+| `dict[str, int]` | `Dict[str, int]` | 键为字符串、值为整数的字典 |
+| `tuple[int, str]` | `Tuple[int, str]` | 固定两个元素，依次为整数和字符串 |
+| `set[int]` | `Set[int]` | 整数集合 |
+
+旧写法需要从 `typing` 导入对应名称。`Optional[str]` 表示值可以是 `None`，不表示函数参数可以省略；参数是否可省略取决于有没有默认值。
+
+## 静态检查与运行时校验
+
+类型标注与 TypeScript 的类型声明有相近用途：帮助 IDE 补全和静态检查。Python 本身不会因为一个参数标注为 `int`，就自动拒绝传入字符串。
+
+`Literal` 向类型检查器声明有限的取值，`Annotated` 在原类型上附加元数据；元数据只有被框架或自己的代码读取时才有作用。普通字符串说明不会自动变成校验规则，FastAPI 和 Pydantic 通常需要各自支持的元数据对象。
+
+处理 HTTP 请求、配置或 JSON 等外部输入时，使用显式检查或 [Pydantic 数据校验](/snippets/python/pydantic-validation)。

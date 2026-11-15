@@ -1,0 +1,65 @@
+---
+title: '读写文件与 JSON'
+description: '通过 with 管理文件，将 Python 数据写入 JSON，并区分文件操作与字符串序列化。'
+language: 'python'
+tags: 'Python,文件,JSON'
+date: '2026-08-10'
+originTitle: 'Python 学习与速查索引'
+originHref: '/blog/python-review#基础语法'
+---
+
+```python title="files_json_demo.py" showLineNumbers
+import json
+from pathlib import Path
+
+path = Path("profile.json")
+data = {"name": "张三", "age": 25, "hobbies": ["读书"], "is_active": True}
+
+with path.open("w", encoding="utf-8") as file:
+    json.dump(data, file, ensure_ascii=False, indent=2)
+
+with path.open("r", encoding="utf-8") as file:
+    restored = json.load(file)
+
+print(restored["name"])
+```
+
+## 文件模式与资源管理
+
+适用 Python 3.10+，仅使用标准库。上面的示例会在当前工作目录创建或覆盖 `profile.json`；`with` 会在正常结束或抛出异常时关闭文件。
+
+| 模式 | 用途 | 文件不存在 | 文件存在 |
+| --- | --- | --- | --- |
+| `r` | 读取 | 抛出 `FileNotFoundError` | 从头读取 |
+| `w` | 覆盖写入 | 创建文件 | 清空旧内容后写入 |
+| `a` | 追加写入 | 创建文件 | 写到末尾 |
+| `x` | 只新建 | 创建文件 | 抛出 `FileExistsError` |
+
+```python title="write_lines.py" showLineNumbers
+with open("notes.txt", "w", encoding="utf-8") as file:
+    file.write("第一行\n")
+    file.writelines(["第二行\n", "第三行\n"])
+```
+
+`write()` 和 `writelines()` 都不会自动补换行。创建文件不会自动创建父目录，目标位于子目录时要先准备目录。
+
+## JSON 字符串与文件的区别
+
+```python title="json_string.py" showLineNumbers
+import json
+
+data = {"name": "张三", "is_active": True}
+json_text = json.dumps(data, ensure_ascii=False, indent=2)
+parsed = json.loads(json_text)
+print(json_text)
+print(parsed)
+```
+
+| 方法 | 输入与输出 |
+| --- | --- |
+| `json.dumps(data)` | Python 对象转 JSON 字符串 |
+| `json.loads(text)` | JSON 字符串转 Python 对象 |
+| `json.dump(data, file)` | 把 JSON 写到已打开的文件 |
+| `json.load(file)` | 从已打开的文件读取 JSON |
+
+`ensure_ascii=False` 保留中文字符；默认转成 `\uXXXX` 仍是有效 JSON，不代表内容丢失。Python 的 `True`、`False`、`None` 分别对应 JSON 的 `true`、`false`、`null`。日期、集合等对象不能直接按默认规则序列化，需要先转换；无效 JSON 会抛出 `json.JSONDecodeError`。

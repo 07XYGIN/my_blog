@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { FileTree } from "@/components/mdx/file-tree";
 import { MermaidDiagram } from "@/components/mdx/mermaid-diagram";
 import { CodeFigure } from "@/components/code-block";
-import { uniqueHeadingId } from "@/lib/posts";
+import { uniqueHeadingId } from "@/lib/mdx-content";
 
 type CalloutKind = "note" | "tip" | "warning" | "danger" | "interview";
 

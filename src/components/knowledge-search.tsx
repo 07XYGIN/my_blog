@@ -6,11 +6,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import type { SearchDocument } from "@/lib/posts";
+import type { KnowledgeDocument } from "@/lib/search";
 
-type SearchResult = SearchDocument & { score: number; excerpt: string };
+type SearchResult = KnowledgeDocument & { score: number; excerpt: string };
 
-export function KnowledgeSearch({ documents, compact = false }: { documents: SearchDocument[]; compact?: boolean }) {
+export function KnowledgeSearch({ documents, compact = false }: { documents: KnowledgeDocument[]; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -61,7 +61,7 @@ export function KnowledgeSearch({ documents, compact = false }: { documents: Sea
           {results.length > 0 ? (
             <div className="grid gap-2">
               {results.map((result) => (
-                <Link className="focus-ring group rounded-xl border border-transparent p-4 transition hover:border-[var(--outline)] hover:bg-[var(--surface-low)]" href={`/blog/${result.slug}`} key={result.slug} onClick={() => setOpen(false)}>
+                <Link className="focus-ring group rounded-xl border border-transparent p-4 transition hover:border-[var(--outline)] hover:bg-[var(--surface-low)]" href={result.href} key={result.href} onClick={() => setOpen(false)}>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="tag">{result.category}</span>
                     {result.tags.slice(0, 3).map((tag) => <span className="tag" key={tag}>{tag}</span>)}
@@ -89,7 +89,7 @@ export function KnowledgeSearch({ documents, compact = false }: { documents: Sea
   );
 }
 
-function searchDocuments(documents: SearchDocument[], query: string): SearchResult[] {
+function searchDocuments(documents: KnowledgeDocument[], query: string): SearchResult[] {
   const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
   if (terms.length === 0) return documents.slice(0, 8).map((document) => ({ ...document, score: 1, excerpt: document.preview }));
 

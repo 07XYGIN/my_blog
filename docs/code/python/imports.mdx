@@ -1,0 +1,74 @@
+---
+title: '组织模块并正确导入'
+description: '区分整个模块、单个成员、绝对导入和包内相对导入，并选择正确启动方式。'
+language: 'python'
+tags: 'Python,模块化,导入'
+date: '2026-08-10'
+originTitle: 'Python 学习与速查索引'
+originHref: '/blog/python-review#基础语法'
+---
+
+```python title="imports_demo.py" showLineNumbers
+import json
+import datetime as dt
+from pathlib import Path
+
+data = {"date": dt.date.today().isoformat(), "file": Path("notes.json").name}
+print(json.dumps(data, ensure_ascii=False))
+```
+
+## 同目录导入
+
+适用 Python 3.10+，这一页不需要第三方依赖。`import json` 导入整个模块，`from pathlib import Path` 导入一个成员，`as` 为名称提供别名。
+
+自己定义的模块也遵循同样的规则。将下面两个文件放在同一目录，在该目录执行 `python main.py`。
+
+```python title="a.py" showLineNumbers
+def add(a: int, b: int) -> int:
+    return a + b
+```
+
+```python title="main.py" showLineNumbers
+from a import add
+
+print(add(1, 2))
+```
+
+不要把自己的文件命名为 `json.py`、`typing.py` 等标准库或依赖模块名，否则可能遮蔽本来要导入的模块。
+
+## 包内导入与模块启动
+
+以下结构把文件作为 `src` 包组织。两个 `__init__.py` 可以为空，项目根目录位于 `src` 的上一级。
+
+```text title="项目结构" showLineNumbers
+project/
+  src/
+    __init__.py
+    a.py
+    mysql/
+      __init__.py
+      config.py
+      main.py
+```
+
+```python title="src/mysql/config.py" showLineNumbers
+database = "mysql://localhost:3306"
+```
+
+```python title="src/mysql/main.py" showLineNumbers
+from . import config
+
+
+def connect_to_db() -> str:
+    return config.database
+```
+
+```python title="src/a.py" showLineNumbers
+from .mysql.main import connect_to_db
+
+print(connect_to_db())
+```
+
+在项目根目录运行 `python -m src.a`。`.` 表示当前包，`..` 表示上一级包；相对导入需要已知包上下文，直接执行 `python src/a.py` 会失败。
+
+项目根目录作为导入起点时，也能使用绝对导入 `from src.mysql.main import connect_to_db`，或 `import src.mysql.config as config`。同一个文件从“直接执行”改成“作为包导入”时，内部的 `import config` 通常也应改为包内相对导入或完整包名。

@@ -1,0 +1,244 @@
+---
+title: 'Spring Boot 的 Redis 缓存与 ID 生成'
+description: '封装带过期时间的 JSON 缓存，处理序列化边界，并配置雪花 ID 的实例编号与字符串返回。'
+category: 'Java'
+tags: 'Java,Spring Boot,Redis,Jackson,雪花ID'
+date: '2026-08-05'
+readTime: '10 分钟'
+author: 'Gin'
+IS_SHOW: true
+---
+
+本文基于 Java 17、Spring Boot 3.5.x 与 Jackson 2，接续 [Spring Boot 与 MyBatis 工程实践](/blog/spring-boot-mybatis) 的 Maven 工程。示例统一位于 `com.example.notes` 包，由该包下的 `@SpringBootApplication` 扫描；使用构造器注入，不依赖 Lombok。
+
+这里整理两个独立的基础设施问题：Redis 中怎样存取带 TTL 的数据，以及多个服务实例怎样生成 ID。它们不要求组合使用。
+
+## 依赖与 Redis 连接
+
+将下面依赖加入主工程的 `dependencies`。Redis starter 的版本由 Spring Boot 的 parent 或 BOM 管理；Hutool 使用原笔记的 5.8.47，只引入提供雪花 ID 的 `hutool-core`。
+
+```xml title="pom.xml 中的新增依赖" showLineNumbers
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-redis</artifactId>
+</dependency>
+<dependency>
+    <groupId>cn.hutool</groupId>
+    <artifactId>hutool-core</artifactId>
+    <version>5.8.47</version>
+</dependency>
+```
+
+本机需要单独运行 Redis 服务，添加 starter 并不会安装或启动 Redis。以下地址用于本地练习；已有 `spring` 配置时，应把 `data.redis` 合并进去，避免出现重复的 YAML 顶层键。
+
+```yaml title="application.yml 中的 Redis 配置" showLineNumbers
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      connect-timeout: 2s
+      timeout: 2s
+```
+
+示例假设本地实例不需要认证。实际环境若有用户名、密码或 TLS，应按该实例要求配置，密码通过部署环境注入。
+
+## 带 TTL 的 JSON 缓存
+
+`StringRedisTemplate` 负责字符串键和值，`ObjectMapper` 负责对象和 JSON 之间的转换。Spring Boot 的 Web starter 会自动配置 Jackson 2 的 `ObjectMapper`，这里复用容器实例。
+
+```java title="src/main/java/com/example/notes/JsonCache.java" showLineNumbers
+package com.example.notes;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
+import java.util.Objects;
+import java.util.Optional;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Component;
+
+@Component
+public class JsonCache {
+    private final StringRedisTemplate redis;
+    private final ObjectMapper objectMapper;
+
+    public JsonCache(StringRedisTemplate redis, ObjectMapper objectMapper) {
+        this.redis = redis;
+        this.objectMapper = objectMapper;
+    }
+
+    public void set(String key, Object value, Duration ttl) {
+        requireKey(key);
+        Objects.requireNonNull(value, "缓存值不能为 null");
+        Objects.requireNonNull(ttl, "TTL 不能为空");
+        if (ttl.isZero() || ttl.isNegative()) {
+            throw new IllegalArgumentException("TTL 必须大于 0");
+        }
+
+        final String json;
+        try {
+            json = objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("缓存值无法序列化为 JSON", exception);
+        }
+        redis.opsForValue().set(key, json, ttl);
+    }
+
+    public <T> Optional<T> get(String key, Class<T> type) {
+        requireKey(key);
+        Objects.requireNonNull(type, "目标类型不能为空");
+        String json = redis.opsForValue().get(key);
+        if (json == null) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.ofNullable(objectMapper.readValue(json, type));
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("缓存内容与目标类型不匹配", exception);
+        }
+    }
+
+    public boolean delete(String key) {
+        requireKey(key);
+        return Boolean.TRUE.equals(redis.delete(key));
+    }
+
+    public boolean hasKey(String key) {
+        requireKey(key);
+        return Boolean.TRUE.equals(redis.hasKey(key));
+    }
+
+    private static void requireKey(String key) {
+        if (key == null || key.isBlank()) {
+            throw new IllegalArgumentException("缓存键不能为空");
+        }
+    }
+}
+```
+
+`set` 每次都要求正 TTL，调用 Redis 时把值与过期时间一起设置。它没有使用“先写值、再设置过期”的两次调用，避免中间失败时留下本应过期的缓存。
+
+Jackson 2 的序列化与反序列化方法会抛出受检异常，必须捕获或在方法签名中声明。这里将调用方传入的不可序列化对象与已有缓存格式错误区分开，并保留原始异常作为原因；Redis 连接失败等数据访问异常继续向上传播。
+
+### 调用示例
+
+下面的组件演示 `JsonCache` 的组合方式。它不包含数据库查询；未命中时返回空值，是否查数据库、重建缓存或容忍 Redis 故障，应由实际业务决定。
+
+```java title="src/main/java/com/example/notes/ProfileCache.java" showLineNumbers
+package com.example.notes;
+
+import java.time.Duration;
+import java.util.Optional;
+import org.springframework.stereotype.Service;
+
+@Service
+public class ProfileCache {
+    private final JsonCache cache;
+
+    public ProfileCache(JsonCache cache) {
+        this.cache = cache;
+    }
+
+    public void save(Profile profile) {
+        cache.set(key(profile.id()), profile, Duration.ofMinutes(10));
+    }
+
+    public Optional<Profile> find(String userId) {
+        return cache.get(key(userId), Profile.class);
+    }
+
+    public boolean remove(String userId) {
+        return cache.delete(key(userId));
+    }
+
+    private static String key(String userId) {
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("用户 ID 不能为空");
+        }
+        return "cache:profile:v1:" + userId;
+    }
+
+    public record Profile(String id, String displayName) {}
+}
+```
+
+键中的命名空间与格式版本有助于区分用途和处理模型变更。`Optional.empty()` 表示读取时没有值；不要先调用 `hasKey()` 再 `get()` 判断命中，因为键可能在两次调用之间过期或被删除。
+
+### 反序列化与鉴权边界
+
+`Class<T>` 适合 `Profile.class` 这样的具体类型，不能完整表达 `List<Profile>` 的元素类型。不要把 `List.class` 当成泛型集合已经恢复；这种情况需要 Jackson 的 `TypeReference` 或 `JavaType`，另行提供匹配的读取方法。
+
+这个封装存储的是 JSON 数据，不应直接承担所有 Redis 用途。[JWT 鉴权](/blog/spring-security-jwt) 若需要支持撤销令牌，应设计独立的令牌标识、键命名和剩余有效期策略。认证状态依赖的 Redis 与可丢弃的查询缓存，其故障处理要求也可能不同。
+
+## 配置雪花 ID
+
+雪花 ID 将时间、实例编号与同一时间内的序列号组合到一个整数中，通常能生成大体按时间增长的 `long` 值。这里使用 Hutool 的实现，不另写一套位运算与时钟处理逻辑。
+
+```yaml title="application.yml 中的 ID 配置" showLineNumbers
+id:
+  snowflake:
+    worker-id: ${SNOWFLAKE_WORKER_ID}
+    datacenter-id: ${SNOWFLAKE_DATACENTER_ID}
+```
+
+两个编号没有默认值，启动前必须由环境提供。Hutool 5.8.x 的这两个编号范围均为 `0..31`；同一 ID 空间内同时运行的实例必须使用不同组合，不能把文章里的某组固定数字复制到所有实例。
+
+```java title="src/main/java/com/example/notes/SnowflakeConfig.java" showLineNumbers
+package com.example.notes;
+
+import cn.hutool.core.lang.Snowflake;
+import cn.hutool.core.util.IdUtil;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class SnowflakeConfig {
+    @Bean
+    public Snowflake snowflake(
+            @Value("${id.snowflake.worker-id}") long workerId,
+            @Value("${id.snowflake.datacenter-id}") long datacenterId) {
+        if (workerId < 0 || workerId > 31 || datacenterId < 0 || datacenterId > 31) {
+            throw new IllegalArgumentException("雪花实例编号必须在 0 到 31 之间");
+        }
+        return IdUtil.getSnowflake(workerId, datacenterId);
+    }
+}
+```
+
+`@Bean` 默认是 Spring 单例。调用方注入这个实例反复生成 ID，不要每生成一个 ID 就创建新的生成器。
+
+```java title="src/main/java/com/example/notes/IdentifierService.java" showLineNumbers
+package com.example.notes;
+
+import cn.hutool.core.lang.Snowflake;
+import org.springframework.stereotype.Service;
+
+@Service
+public class IdentifierService {
+    private final Snowflake snowflake;
+
+    public IdentifierService(Snowflake snowflake) {
+        this.snowflake = snowflake;
+    }
+
+    public String nextId() {
+        return Long.toString(snowflake.nextId());
+    }
+}
+```
+
+### 唯一性与时钟
+
+唯一性依赖部署条件：实例编号不能冲突，进程重启、编号重新分配和时钟回退都需要统一策略。系统时间回拨时，生成器可能等待或抛出异常；具体容忍范围取决于库实现和配置。调用方不能捕获错误后随意返回旧 ID，运维也应监测时钟同步与生成失败。
+
+雪花 ID 不是保密信息，也不代表用户具有访问该记录的权限。它通常有时间趋势，但不等于所有实例之间严格有序的业务序号。
+
+### 返回给 JavaScript
+
+JavaScript `Number` 能精确表示的最大安全整数为 `2^53 - 1`，即 `9007199254740991`。常见雪花 ID 会超过这个范围，因此 `IdentifierService` 返回十进制字符串；数据库仍可以存 `BIGINT`，接口 DTO 中的该字段使用 `String`。
+
+如果不需要数字形式和时间趋势，也可考虑标准库的 `UUID.randomUUID().toString()`，无需引入 Hutool。它解决的是另一种 ID 生成需求，存储形式和索引特性也不同。
+
+返回 [Java 与 Spring Boot 学习索引](/blog/java-spring-notes)。

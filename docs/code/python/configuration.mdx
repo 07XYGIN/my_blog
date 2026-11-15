@@ -1,0 +1,78 @@
+---
+title: '读取环境变量与 YAML 配置'
+description: '用 dotenv 加载本地环境变量，明确字符串转换，并用 safe_load 读取结构化 YAML。'
+language: 'python'
+tags: 'Python,配置,env,YAML'
+date: '2026-08-10'
+originTitle: 'Python 学习与速查索引'
+originHref: '/blog/python-review#常用模块'
+---
+
+```python title="config.py" showLineNumbers
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+CONFIG_DIR = Path(__file__).resolve().parent
+load_dotenv(CONFIG_DIR / ".env")
+
+db_host = os.getenv("DB_HOST", "127.0.0.1")
+db_port = int(os.getenv("DB_PORT", "3306"))
+print(f"数据库地址：{db_host}:{db_port}")
+```
+
+## 环境变量与路径
+
+适用 Python 3.10+。示例假设 `.env` 与 `config.py` 放在同一目录，使用 `__file__` 计算路径，避免依赖启动命令所在的目录。
+
+```powershell title="安装配置读取依赖" showLineNumbers
+uv add python-dotenv pyyaml
+```
+
+```dotenv title=".env" showLineNumbers
+DB_HOST=127.0.0.1
+DB_PORT=3306
+```
+
+`os.getenv` 无需第三方依赖，读取到的环境变量是字符串，不存在时返回默认值或 `None`；读取 `.env` 文件才需要 `python-dotenv`。`load_dotenv` 默认不会覆盖进程里已存在的同名变量。
+
+显式完成 `int(...)` 等类型转换；例如 `DB_PORT=hello` 会抛出 `ValueError`。布尔配置也应按约定解析，`bool("false")` 的结果是 `True`，不能直接用它转换开关。
+
+## YAML 结构化配置
+
+把下面两个文件放在同一目录，运行 `yaml_config.py`。
+
+```yaml title="keywords.yaml" showLineNumbers
+keywords:
+  - 解脱者
+name:
+  - 塞拉斯
+```
+
+```python title="yaml_config.py" showLineNumbers
+from pathlib import Path
+
+import yaml
+
+CONFIG_DIR = Path(__file__).resolve().parent
+
+
+def get_yaml(filename: str = "keywords.yaml") -> dict[str, object]:
+    with (CONFIG_DIR / filename).open("r", encoding="utf-8") as file:
+        data = yaml.safe_load(file)
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError("配置文件的顶层必须是映射")
+    if not all(isinstance(key, str) for key in data):
+        raise ValueError("配置项名称必须是字符串")
+    return data
+
+
+print(get_yaml())
+```
+
+`safe_load` 避免构造任意 Python 对象，但不负责校验业务结构。空文件返回 `None`；顶层也可能是列表或标量，因此先确认映射类型，再按业务校验具体字段。文件不存在或 YAML 语法不合法时，仍会抛出相应异常。
+
+项目中若配置目录位于脚本上一级，可使用 `Path(__file__).resolve().parent.parent`；应根据真实目录结构选择，不要把固定的“上两级”当成所有项目的根目录规则。

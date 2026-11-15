@@ -18,7 +18,7 @@ relatedPosts:
   - aura-agent-state-workflow
   - langgraph
   - langchain
-  - postgresql
+  - mysql-postgresql
 ---
 
 最初在“沿用历史 Java / NestJS 服务”与“收拢到 FastAPI + LangGraph 主线”之间选择了后者：AI 编排、工具调用和流式响应更适合靠近 Python 生态，也让当前服务边界更容易理解。代价是旧服务无法立即消失，前端又同时覆盖 Vue、Next.js 和 Flutter，认证、协议和联调成本随之上升。

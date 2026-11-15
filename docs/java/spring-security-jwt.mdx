@@ -1,0 +1,443 @@
+---
+title: 'Spring Security 与 JWT：登录、令牌和权限'
+description: '实现密码校验、JWT 签发与一次解析的认证过滤器，明确 401、403、CSRF 和密钥配置的边界。'
+category: 'Java'
+tags: 'Spring Security,JWT,鉴权'
+date: '2026-08-05'
+readTime: '15 分钟'
+author: 'Gin'
+IS_SHOW: true
+---
+
+使用 Java 17、Spring Boot 3.5.x、Spring Security 6.x、JJWT 0.12.6 和 Jackson 2。沿用 [Spring Boot 与 MyBatis 工程](/blog/spring-boot-mybatis) 的 POM、`Result`、`BusinessException` 和请求体验证处理，包名为 `com.example.notes`。
+
+这里实现一个可组合的教学链路：校验密码 → 签发令牌 → 读取 Bearer 请求头 → 验证签名和时效 → 加载当前用户 → 建立 SecurityContext。用户存储用显式启用的本地演示配置替代，注册、刷新令牌和生产用户表不在这份示例中。
+
+## 依赖与必填密钥
+
+在主工程 `dependencies` 中加入：
+
+```xml title="pom.xml：鉴权依赖" showLineNumbers
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-api</artifactId>
+    <version>0.12.6</version>
+</dependency>
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-impl</artifactId>
+    <version>0.12.6</version>
+    <scope>runtime</scope>
+</dependency>
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt-jackson</artifactId>
+    <version>0.12.6</version>
+    <scope>runtime</scope>
+</dependency>
+```
+
+```yaml title="application.yml：合并到原配置" showLineNumbers
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+jwt:
+  signing-key-base64: ${JWT_SIGNING_KEY_BASE64}
+  ttl-seconds: 7200
+```
+
+将 `autoconfigure` 合并到已有的 `spring` 节点，而不是重复定义顶层 `spring`。此处显式关闭默认用户自动配置，要求工程提供下面的演示用户服务或自己的用户服务。
+
+密钥不提供开发默认值；缺失、Base64 格式错误或字节长度不合要求时启动失败。下面固定 HS256，配置为随机生成的 32 字节密钥再做 Base64 编码；Base64 只是传输格式，不增加密钥熵。
+
+可在本机 PowerShell 中生成本次开发环境的密钥，然后通过该进程的环境变量启动应用。输出不应提交到仓库。
+
+```powershell title="为当前开发进程生成随机密钥" showLineNumbers
+$jwtKeyBytes = New-Object byte[] 32
+$jwtKeyGenerator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+try {
+    $jwtKeyGenerator.GetBytes($jwtKeyBytes)
+    $env:JWT_SIGNING_KEY_BASE64 = [Convert]::ToBase64String($jwtKeyBytes)
+} finally {
+    $jwtKeyGenerator.Dispose()
+}
+```
+
+## JWT 签发与一次解析
+
+```java title="security/JwtService.java" showLineNumbers
+package com.example.notes.security;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+import java.time.Instant;
+import java.util.Date;
+import javax.crypto.SecretKey;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+@Component
+public class JwtService {
+    private final SecretKey key;
+    private final long ttlSeconds;
+
+    public JwtService(@Value("${jwt.signing-key-base64}") String encodedKey,
+                      @Value("${jwt.ttl-seconds}") long ttlSeconds) {
+        byte[] bytes = Decoders.BASE64.decode(encodedKey);
+        if (bytes.length != 32 || ttlSeconds <= 0) {
+            throw new IllegalArgumentException("JWT 要求 32 字节密钥及正数有效期");
+        }
+        this.key = Keys.hmacShaKeyFor(bytes);
+        this.ttlSeconds = ttlSeconds;
+    }
+
+    public String generateToken(String username) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .issuer("notes")
+                .subject(username)
+                .claim("platform", "web")
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(ttlSeconds)))
+                .signWith(key, Jwts.SIG.HS256)
+                .compact();
+    }
+
+    public Claims parseClaims(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(key)
+                .requireIssuer("notes")
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        if (claims.getSubject() == null || claims.getSubject().isBlank()
+                || claims.getExpiration() == null) {
+            throw new IllegalArgumentException("令牌缺少必要字段");
+        }
+        return claims;
+    }
+
+    public long getTtlSeconds() {
+        return ttlSeconds;
+    }
+}
+```
+
+`parseSignedClaims` 验证签名和已声明的时间约束，不是简单解码 JSON。代码额外要求发行者、subject 和过期时间；一次请求只解析一次，避免先 `validateToken` 再取用户名导致重复验签。
+
+`claims.getSubject()` 读取 subject，`claims.get("platform", String.class)` 读取自定义字段；写入和读取类型要一致。真实系统可用稳定的用户 ID 作为 subject。本示例用演示用户名查用户，不把一个客户端传来的角色直接当成权限。
+
+JWT 的载荷通常可被持有者读取，签名不等于加密，令牌里不放密码或其他需要保密的内容。
+
+## 密码哈希与演示用户
+
+`PasswordEncoder.encode(rawPassword)` 在注册时生成待存储的哈希；`matches(rawPassword, storedHash)` 在登录时校验。BCrypt 带随机盐，两次生成的字符串通常不同，不能用“重新 encode 后比较字符串”验证密码。
+
+下面的用户存储只在 `demo` profile 下启用，用户名为 `demo`，已生成的 BCrypt 哈希从必填环境变量 `DEMO_PASSWORD_HASH` 注入。需要真实用户时，实现同一个 `UserDetailsService` 接口，从数据库加载用户、哈希、状态和权限。
+
+```java title="security/DemoUsersConfig.java" showLineNumbers
+package com.example.notes.security;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+
+@Configuration
+@Profile("demo")
+public class DemoUsersConfig {
+    @Bean
+    public UserDetailsService demoUsers(@Value("${DEMO_PASSWORD_HASH}") String passwordHash) {
+        return new InMemoryUserDetailsManager(User.withUsername("demo")
+                .password(passwordHash)
+                .roles("USER")
+                .build());
+    }
+}
+```
+
+如果需要生成本地演示哈希，可以在已配置依赖的工程里运行下列普通 Java 类。它从交互控制台读取密码并打印哈希，不会创建默认账户或写入数据库。
+
+```java title="tools/PasswordHashTool.java" showLineNumbers
+package com.example.notes.tools;
+
+import java.io.Console;
+import java.util.Arrays;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
+public class PasswordHashTool {
+    public static void main(String[] args) {
+        Console console = System.console();
+        if (console == null) {
+            throw new IllegalStateException("请在可交互控制台运行");
+        }
+        char[] password = console.readPassword("本地演示密码：");
+        if (password == null || password.length == 0) {
+            throw new IllegalArgumentException("密码不能为空");
+        }
+        try {
+            System.out.println(new BCryptPasswordEncoder().encode(new String(password)));
+        } finally {
+            Arrays.fill(password, '\0');
+        }
+    }
+}
+```
+
+本地运行时显式设置 `SPRING_PROFILES_ACTIVE=demo` 与 `DEMO_PASSWORD_HASH`。没有演示配置或其他 `UserDetailsService` 实现时，下面依赖该服务的组件应无法启动。
+
+## 登录接口
+
+```java title="security/AuthController.java" showLineNumbers
+package com.example.notes.security;
+
+import com.example.notes.common.BusinessException;
+import com.example.notes.common.Result;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/auth")
+public class AuthController {
+    private final UserDetailsService users;
+    private final PasswordEncoder passwords;
+    private final JwtService tokens;
+
+    public AuthController(UserDetailsService users, PasswordEncoder passwords, JwtService tokens) {
+        this.users = users;
+        this.passwords = passwords;
+        this.tokens = tokens;
+    }
+
+    public record LoginRequest(@NotBlank String username, @NotBlank String password) {}
+    public record TokenResponse(String accessToken, String tokenType, long expiresIn) {}
+
+    @PostMapping("/login")
+    public Result<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
+        UserDetails user;
+        try {
+            user = users.loadUserByUsername(request.username());
+        } catch (UsernameNotFoundException exception) {
+            throw invalidCredentials();
+        }
+        if (!user.isEnabled() || !user.isAccountNonLocked() || !user.isAccountNonExpired()
+                || !user.isCredentialsNonExpired()
+                || !passwords.matches(request.password(), user.getPassword())) {
+            throw invalidCredentials();
+        }
+        return Result.success(new TokenResponse(tokens.generateToken(user.getUsername()),
+                "Bearer", tokens.getTtlSeconds()));
+    }
+
+    private BusinessException invalidCredentials() {
+        return new BusinessException(HttpStatus.UNAUTHORIZED, "用户名或密码错误");
+    }
+}
+```
+
+请求体形如 `{"username":"demo","password":"本地设置的密码"}`。响应中的 `accessToken` 在后续请求中放入 `Authorization: Bearer <token>`。该接口用于讲清签发链路；部署时还需统一登录速率限制、失败审计和密码策略。
+
+## 认证失败与权限不足
+
+401 表示缺少有效认证，403 表示当前身份没有权限。过滤器链中的失败需要 Security 的处理器；Controller 的全局异常处理器不能替代它。
+
+```java title="security/JsonSecurityErrors.java" showLineNumbers
+package com.example.notes.security;
+
+import com.example.notes.common.Result;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.stereotype.Component;
+
+@Component
+public class JsonSecurityErrors implements AuthenticationEntryPoint, AccessDeniedHandler {
+    private final ObjectMapper mapper;
+
+    public JsonSecurityErrors(ObjectMapper mapper) {
+        this.mapper = mapper;
+    }
+
+    @Override
+    public void commence(HttpServletRequest request, HttpServletResponse response,
+                         AuthenticationException exception) throws IOException {
+        response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+        write(response, 401, "未登录或令牌已失效");
+    }
+
+    @Override
+    public void handle(HttpServletRequest request, HttpServletResponse response,
+                       AccessDeniedException exception) throws IOException {
+        write(response, 403, "没有访问权限");
+    }
+
+    private void write(HttpServletResponse response, int status, String message) throws IOException {
+        response.setStatus(status);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        mapper.writeValue(response.getWriter(), Result.fail(status, message));
+    }
+}
+```
+
+## 过滤器与认证上下文
+
+`OncePerRequestFilter` 提供一次过滤的常用基类。此处不标注 `@Component`，随后只通过配置注册到 Security 过滤器链，避免同时作为普通 Servlet Filter 自动注册。
+
+```java title="security/JwtAuthenticationFilter.java" showLineNumbers
+package com.example.notes.security;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    private final JwtService tokens;
+    private final UserDetailsService users;
+    private final JsonSecurityErrors errors;
+
+    public JwtAuthenticationFilter(JwtService tokens, UserDetailsService users,
+                                   JsonSecurityErrors errors) {
+        this.tokens = tokens;
+        this.users = users;
+        this.errors = errors;
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return "/auth/login".equals(request.getServletPath());
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
+                                    FilterChain chain) throws ServletException, IOException {
+        String header = request.getHeader("Authorization");
+        if (header == null) {
+            chain.doFilter(request, response);
+            return;
+        }
+        try {
+            if (!header.regionMatches(true, 0, "Bearer ", 0, 7)) {
+                throw new BadCredentialsException("不支持的认证方式");
+            }
+            Claims claims = tokens.parseClaims(header.substring(7).trim());
+            UserDetails user = users.loadUserByUsername(claims.getSubject());
+            if (!user.isEnabled() || !user.isAccountNonLocked() || !user.isAccountNonExpired()
+                    || !user.isCredentialsNonExpired()) {
+                throw new BadCredentialsException("用户不可用");
+            }
+            SecurityContext context = SecurityContextHolder.createEmptyContext();
+            context.setAuthentication(new UsernamePasswordAuthenticationToken(
+                    user, null, user.getAuthorities()));
+            SecurityContextHolder.setContext(context);
+        } catch (JwtException | IllegalArgumentException | AuthenticationException exception) {
+            SecurityContextHolder.clearContext();
+            errors.commence(request, response, new BadCredentialsException("令牌无效", exception));
+            return;
+        }
+        chain.doFilter(request, response);
+    }
+}
+```
+
+没有请求头时继续，由后面的授权规则判断该路径是否公开；有错误 Bearer 令牌时直接返回 401。登录路径跳过令牌解析，避免旧令牌干扰重新登录。
+
+加载当前用户的好处是能反映禁用状态和最新权限；示例也避免将用户名字符串当成唯一的“已认证”依据。SecurityContext 保存本次请求的认证信息，不会因此创建服务器登录 Session。
+
+## Security 配置与 CSRF 边界
+
+```java title="security/SecurityConfig.java" showLineNumbers
+package com.example.notes.security;
+
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+public class SecurityConfig {
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public JwtAuthenticationFilter jwtAuthenticationFilter(
+            JwtService tokens, UserDetailsService users, JsonSecurityErrors errors) {
+        return new JwtAuthenticationFilter(tokens, users, errors);
+    }
+
+    @Bean
+    public FilterRegistrationBean<JwtAuthenticationFilter> disableServletRegistration(
+            JwtAuthenticationFilter filter) {
+        FilterRegistrationBean<JwtAuthenticationFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http,
+            JwtAuthenticationFilter filter, JsonSecurityErrors errors) throws Exception {
+        http.csrf(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(handler -> handler.authenticationEntryPoint(errors).accessDeniedHandler(errors))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/auth/login").permitAll()
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
+                        .anyRequest().authenticated())
+                .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
+}
+```
+
+这里关闭 CSRF 的前提是凭证由客户端显式放入 Authorization 请求头，浏览器不会自动附带用于认证的 Cookie。若改用 Cookie、表单或其他自动携带凭证的方案，必须重新评估 CSRF 防护；“前后端分离”或“使用 JWT”本身都不是关闭它的充分条件。跨域调用还要单独配置 CORS。
+
+引入 Security 后的默认行为还受请求类型、内容协商等影响，可能是登录页重定向或 401，不能概括为“所有请求都会跳登录页”。显式配置过滤器链后，以这里的路径和错误处理规则为准。
+
+`hasRole("ADMIN")` 对应 `ROLE_ADMIN` 权限；演示账户只有 `ROLE_USER`，访问已存在的管理接口会得到 403。JWT 和用户存储承担不同职责，退出登录、撤销令牌不能仅靠客户端删除字符串实现：若采用 [Redis](/blog/spring-redis-identifiers) 黑名单，需要独立的撤销检查与令牌剩余 TTL；本文没有把这一机制伪装成已完成的功能。

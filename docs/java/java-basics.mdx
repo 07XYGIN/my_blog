@@ -1,0 +1,128 @@
+---
+title: 'Java 基础：对象、集合与常用类型'
+description: '用可运行示例理解空集合、封装、final 与 static，整理基本类型、精确小数和日期时间。'
+category: 'Java'
+tags: 'Java,基础语法,数据类型'
+date: '2026-08-05'
+readTime: '7 分钟'
+author: 'Gin'
+IS_SHOW: true
+---
+
+本文使用 Java 17，只依赖 JDK。来自 [Java 与 Spring Boot 学习索引](/blog/java-spring-notes)；进入 Web 工程前，先分清“没有对象”“空对象”和“对象内部状态”。
+
+## 先运行一个完整示例
+
+将文件保存为 `JavaBasicsDemo.java`，执行 `javac -encoding UTF-8 JavaBasicsDemo.java`，再执行 `java JavaBasicsDemo`。
+
+```java title="JavaBasicsDemo.java" showLineNumbers
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+public class JavaBasicsDemo {
+    public static void main(String[] args) {
+        List<String> empty = new ArrayList<>();
+        List<String> missing = null;
+        System.out.println(empty.isEmpty());
+        System.out.println(missing == null || missing.isEmpty());
+
+        Book book = new Book();
+        book.setBookName("Java 笔记");
+        System.out.println(book.getBookName());
+
+        final List<String> names = new ArrayList<>();
+        names.add("Gin");
+        System.out.println(names);
+        System.out.println(Counter.addCount());
+
+        BigDecimal amount = new BigDecimal("0.1").add(new BigDecimal("0.2"));
+        BigInteger large = new BigInteger("9223372036854775808");
+        System.out.println(amount);
+        System.out.println(large);
+        System.out.println(LocalDateTime.now());
+        System.out.println(Instant.now());
+    }
+
+    static final class Book {
+        private String bookName;
+
+        public String getBookName() {
+            return bookName;
+        }
+
+        public void setBookName(String bookName) {
+            this.bookName = bookName;
+        }
+    }
+
+    static final class Counter {
+        private static int count;
+
+        public static int addCount() {
+            return ++count;
+        }
+    }
+}
+```
+
+## 空集合与 null
+
+`new ArrayList<>()` 已经创建对象，只是没有元素；`null` 表示没有引用到对象。在 `null` 上调用 `isEmpty()` 会抛出 `NullPointerException`。
+
+`items == null || items.isEmpty()` 使用短路求值：左侧成立后不会访问右侧。Spring 项目也可用 `org.springframework.util.CollectionUtils.isEmpty(items)`，纯 JDK 代码没有这个工具类。
+
+`List.of("a")` 创建不可修改的列表；需要后续添加元素时用 `ArrayList`。列表是否为空，与列表是否可修改，是两件不同的事。
+
+## 封装、修饰符与接口
+
+| 关键字 | 含义与边界 |
+| --- | --- |
+| `private` | 限制成员访问，用 getter、setter 或行为方法控制外部操作 |
+| `public` | 对可见的调用者公开；跨包访问还受包、模块和外层类型可见性约束 |
+| `final` | 变量只能赋值一次；修饰类时不能继承，修饰方法时不能重写 |
+| `static` | 成员属于类，可通过类名访问，不需要先创建实例 |
+| `interface` | 定义类型契约，类通过 `implements` 实现它 |
+
+`book.bookName` 在其他不具备访问权限的类中不能直接读取，`book.getBookName()` 是显式提供的访问入口。`this.bookName = bookName` 左边是当前对象字段，右边是方法参数。
+
+`final List<String> names` 固定的是引用，`names.add(...)` 仍能修改列表；`names = new ArrayList<>()` 才是禁止的重新赋值。`final` 不能自动让整个对象不可变。
+
+接口不只允许方法签名：现代 Java 接口还可以包含常量、`default`、`static` 等方法。MyBatis 的 Mapper 是框架为接口创建代理的一个例子，并不意味着所有接口都由框架实现。
+
+`Counter` 只用来说明类级状态；`++count` 不是多线程下的原子操作，不应直接作为并发计数器或分布式 ID。
+
+## 基本类型与包装类
+
+| 基本类型 | 特点 | 包装类 |
+| --- | --- | --- |
+| `byte` | 8 位有符号整数，-128～127 | `Byte` |
+| `short` | 16 位有符号整数 | `Short` |
+| `int` | 32 位有符号整数，整数字面量通常默认用它 | `Integer` |
+| `long` | 64 位有符号整数，字面量可加 `L`，如 `100L` | `Long` |
+| `float` | 32 位浮点数，字面量加 `F`，如 `3.14F` | `Float` |
+| `double` | 64 位浮点数，小数字面量的默认类型 | `Double` |
+| `char` | 一个 16 位 UTF-16 代码单元，使用单引号 | `Character` |
+| `boolean` | `true` 或 `false` | `Boolean` |
+
+泛型集合不能直接写 `List<int>`，应写 `List<Integer>`。包装类可以为 `null`，拆箱到基本类型时若值为 `null`，会抛出 `NullPointerException`。比较包装数值内容时不要依赖 `==`，它可能比较引用；可用 `Objects.equals(a, b)` 处理包含空值的比较。
+
+一个可见字符不一定只占一个 `char`，部分表情和补充平面的字符需要一对 UTF-16 代码单元。完整 Unicode 处理需按 code point 理解。
+
+## 精确数值与日期时间
+
+`BigDecimal` 适合金额等十进制精确计算，优先用 `new BigDecimal("0.1")` 或合适的 `BigDecimal.valueOf(...)`。`new BigDecimal(0.1)` 会带入二进制浮点表示的误差；除法还要明确精度与舍入规则。`equals` 比较时也考虑 scale，数值比较通常使用 `compareTo`。
+
+`BigInteger` 用于超过 `long` 范围的整数；二者都是对象，运算返回新值，不会原地修改。
+
+| 类型 | 表达的概念 |
+| --- | --- |
+| `LocalDate` | 不带时区的日期 |
+| `LocalDateTime` | 不带时区或偏移量的本地日期时间 |
+| `Instant` | 时间线上的时刻，适合记录事件时间 |
+| `OffsetDateTime` / `ZonedDateTime` | 带偏移量或时区规则的日期时间 |
+
+`LocalDateTime` 不是带时区的时间戳。接口和数据库跨时区传输时，应先确定存储与展示约定，不能只把旧的 `Date` 替换成 `LocalDateTime` 就认为问题已经解决。

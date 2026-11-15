@@ -6,7 +6,7 @@ tags: 'Aura,AI Agent,LangGraph,状态机'
 date: '2026-10-19'
 readTime: '8 分钟'
 author: 'Gin'
-IS_SHOW: FALSE
+IS_SHOW: TRUE
 ---
 
 做普通聊天功能时，一次请求通常只有一条直线：接收消息、调用模型、返回答案。开始做 Aura 之后，流程里逐渐出现了更多判断：这句话是否需要调用工具？是否应该读取长期记忆？工具执行失败后要继续回答，还是先重试？
@@ -42,6 +42,8 @@ flowchart LR
 
 ## 状态是工作流的共同语言
 
+示例使用 Python 3.10+、LangGraph 1.x 与 `langchain-core` 1.x，不需要模型密钥。先运行 `uv add "langgraph>=1,<2" "langchain-core>=1,<2"`，把下面四个文件放在同一目录，再运行 `uv run python main.py`。
+
 状态负责在节点之间传递数据。最小示例只保留三个字段：
 
 ```python title="state.py" showLineNumbers
@@ -57,7 +59,7 @@ class AgentState(TypedDict):
     tool_result: str
 ```
 
-`messages` 使用 `add_messages` 作为 reducer。节点返回新消息时，LangGraph 会把它追加到原消息列表，而不是覆盖整个字段。
+`messages` 使用 `add_messages` 作为 reducer。没有相同 ID 的新消息会追加；相同 ID 的消息会更新已有条目，而不是简单覆盖整个列表。
 
 `needs_tool` 是本轮路由需要的临时判断，`tool_result` 则保存工具节点产生的结果。真实项目还可能加入用户标识、会话摘要、情绪状态或错误信息，但字段越多并不代表设计越好。
 
@@ -72,11 +74,16 @@ class AgentState(TypedDict):
 ```python title="nodes.py" showLineNumbers
 from langchain_core.messages import AIMessage
 
+from state import AgentState
+
 
 def analyze_request(state: AgentState):
-    question = state["messages"][-1].content
+    question = str(state["messages"][-1].content)
     keywords = ("天气", "搜索", "查询")
-    return {"needs_tool": any(word in question for word in keywords)}
+    return {
+        "needs_tool": any(word in question for word in keywords),
+        "tool_result": "",  # 每轮重新判断，避免复用上一次查询结果
+    }
 
 
 def call_tool(state: AgentState):
@@ -102,6 +109,9 @@ def reply(state: AgentState):
 ```python title="graph.py" showLineNumbers
 from typing import Literal
 from langgraph.graph import END, START, StateGraph
+
+from nodes import analyze_request, call_tool, reply
+from state import AgentState
 
 
 def route_after_analysis(
@@ -132,6 +142,8 @@ agent = builder.compile()
 ```python title="main.py" showLineNumbers
 from langchain_core.messages import HumanMessage
 
+from graph import agent
+
 
 result = agent.invoke({
     "messages": [HumanMessage(content="帮我查询上海天气")],
@@ -158,8 +170,10 @@ print(result["messages"][-1].content)
 
 最开始很容易把所有中间变量都放进状态。这样虽然方便，却会让持久化数据变大，也让节点之间产生隐式依赖。状态应该描述工作流需要共享的事实，而不是充当全局变量容器。
 
-## 下一步
+## 与真实 Agent 的距离
 
 现在的示例只完成了单轮流程。真正的陪伴型 Agent 还需要区分短期对话与长期记忆，并决定何时写入、何时检索。
 
-下一篇将继续沿着 Aura 的场景，拆解 Agent 的记忆层：消息历史、会话摘要和向量检索分别解决什么问题。
+关键词路由只用于看清条件边，不代表模型已经理解了任务，模拟工具也没有查询真实天气。状态图运行期间会传递状态；跨请求或重启后的保存需要额外配置 checkpointer，不能因为声明了 `messages` 就认为已经有长期记忆。
+
+继续查阅[原生 Agent：对话、记忆与工具调用](/blog/agent_01)和 [LangGraph 工作流笔记](/blog/langgraph)，分别补齐模型交互和持久化机制。

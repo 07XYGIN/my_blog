@@ -11,6 +11,7 @@ originHref: 'https://docs.docker.com/reference/cli/docker/container/run/'
 ```bash title="local-redis.sh"
 docker pull redis:7.4
 docker volume create redis-data
+# 端口只绑定本机；AOF 和数据文件写入命名卷
 docker run -d --name redis-local -p 127.0.0.1:6379:6379 -v redis-data:/data redis:7.4 redis-server --appendonly yes
 docker exec redis-local redis-cli PING
 ```
@@ -19,7 +20,7 @@ docker exec redis-local redis-cli PING
 
 先安装并启动 Docker Engine 或 Docker Desktop。Windows 上需要使用 Linux 容器模式；执行 `docker version` 可以检查客户端是否能连接 Docker 服务。
 
-上面使用 Redis 官方 `7.4` 版本系列镜像，适用于本机开发。首次执行要求容器名 `redis-local` 未被占用、宿主机 6379 端口可用。`PING` 正常时返回 `PONG`，这里只给出预期结果，并非当前机器实测。
+使用 Redis 官方 `7.4` 版本系列镜像。首次执行要求容器名 `redis-local` 未被占用、宿主机 6379 端口可用。`PING` 正常时返回 `PONG`。
 
 | 参数 | 含义 |
 | --- | --- |
@@ -38,7 +39,7 @@ docker exec redis-local redis-cli PING
 ```bash title="inspect-redis.sh"
 docker images
 docker ps
-docker ps -a
+docker ps -a # 包含已退出的容器
 docker logs --tail 100 redis-local
 docker exec redis-local redis-cli PING
 ```

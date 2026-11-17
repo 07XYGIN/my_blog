@@ -40,7 +40,7 @@ print("incoming branch")
 假设冲突文件为 `app.py`，修改并检查完成后执行：
 
 ```bash title="finish-merge.sh"
-git add app.py
+git add app.py # 标记该文件的冲突已经解决
 git diff --cached
 git status
 git merge --continue
@@ -53,7 +53,7 @@ git merge --continue
 如果决定放弃正在进行的普通 merge，使用：
 
 ```bash title="abort-merge.sh"
-git merge --abort
+git merge --abort # 退出正在进行的合并，恢复合并前状态
 ```
 
 该命令适用于尚未完成的合并。合并前带着未提交改动时，Git 不保证能够完整重建原状态，这也是先整理工作区的原因。已提交的合并不能用 `merge --abort` 撤销，需要另外评估撤销方式。

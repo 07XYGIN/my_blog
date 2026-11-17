@@ -13,7 +13,7 @@ IS_SHOW: TRUE
 
 本文包含三个独立脚本：保存对话的聊天程序、本地工具调用、通过 MCP 接入工具。它们可以分别运行，不需要把整篇代码拼成一个文件。框架层的简化放在 [LangChain](/blog/langchain)，工作流与恢复执行放在 [LangGraph](/blog/langgraph)。
 
-## 环境与接口边界
+## 环境与配置
 
 示例使用 Python 3.11+、OpenAI Python SDK 的 Chat Completions 接口，以及 MCP Python SDK 1.x 的客户端 API。安装命令在各脚本前给出，正式项目应在验证后提交 uv.lock。
 
@@ -25,7 +25,7 @@ IS_SHOW: TRUE
 | OPENAI_MODEL | 服务商提供的模型名称 |
 | OPENAI_BASE_URL | 可选；使用兼容服务时填写其接口地址 |
 
-SDK 从进程环境读取配置，不会自动加载 .env 文件。这里没有内置密钥，也不假定所有兼容服务都支持流式输出、工具调用或相同的扩展字段，应按模型的能力选择示例。
+SDK 从进程环境读取配置，不会自动加载 .env 文件。
 
 ## 消息历史：把聊天变成多轮对话
 
@@ -51,16 +51,8 @@ uv add openai
 下面是独立的 chat.py。程序只在流正常完成后写入一对 user / assistant 消息；失败时保留旧历史，下一轮不会带上一段只有用户输入、没有有效回复的半成品。
 
 ~~~python title="chat.py" showLineNumbers
-import json
-import os
-from pathlib import Path
-
-from openai import OpenAI
-
-
 HISTORY_FILE = Path(__file__).with_name("chat-history.json")
 MEMORY_FILE = Path(__file__).with_name("user-memory.json")
-
 
 def load_list(file: Path) -> list:
     if not file.exists():
@@ -70,9 +62,9 @@ def load_list(file: Path) -> list:
         raise ValueError(f"{file.name} 必须保存 JSON 数组")
     return value
 
-
 def load_history() -> list[dict[str, str]]:
     history = load_list(HISTORY_FILE)
+    # 按 user / assistant 成对校验，避免加载上次中断的半轮消息
     for index, message in enumerate(history):
         expected_role = "user" if index % 2 == 0 else "assistant"
         if (
@@ -85,8 +77,8 @@ def load_history() -> list[dict[str, str]]:
         raise ValueError("历史中存在未完成的一轮对话")
     return history
 
-
 def system_message() -> dict[str, str]:
+    # 每轮重新读文件，修改用户记忆后无需重启程序
     memory = load_list(MEMORY_FILE)
     if not all(isinstance(item, str) for item in memory):
         raise ValueError("user-memory.json 的每一项必须是字符串")
@@ -99,7 +91,6 @@ def system_message() -> dict[str, str]:
             + facts
         ),
     }
-
 
 def main() -> None:
     history = load_history()
@@ -114,6 +105,7 @@ def main() -> None:
             try:
                 user = {"role": "user", "content": question}
                 messages = [system_message(), *history, user]
+                # 增量用于即时显示，同时累积完整回复供下一轮使用
                 pieces: list[str] = []
                 finish_reason = None
                 print("助手：", end="", flush=True)
@@ -137,6 +129,7 @@ def main() -> None:
                     user,
                     {"role": "assistant", "content": "".join(pieces)},
                 ]
+                # 先写临时文件再替换，避免写入中断破坏原历史
                 temporary = HISTORY_FILE.with_suffix(".tmp")
                 temporary.write_text(
                     json.dumps(updated, ensure_ascii=False, indent=2),
@@ -146,7 +139,6 @@ def main() -> None:
                 history = updated
             except Exception as error:
                 print(f"\n本轮未保存：{error}")
-
 
 if __name__ == "__main__":
     main()
@@ -160,7 +152,7 @@ if __name__ == "__main__":
 
 文件不存在时按空数组处理；已经存在时也会正常读取。每轮请求都重建 system 消息，因此下次提问就会使用修改后的事实。JSON 损坏会明确报错，不会静默清空原文件。
 
-这里有两种不同的记忆：chat-history.json 保存逐轮消息，user-memory.json 保存手动确认的背景事实。后者只是最简单的长期记忆实现，还没有自动抽取、冲突处理、摘要和检索。
+chat-history.json 保存逐轮消息，user-memory.json 保存手动确认的背景事实。
 
 <Callout type="note" title="本地示例的范围">
 这个文件存储方案面向单进程、单会话练习。多个进程共用文件会有覆盖问题，消息也会随使用持续增长。服务端应使用会话隔离、数据库事务与上下文裁剪，不应直接复用这个文件结构承载多人聊天。
@@ -172,7 +164,7 @@ if __name__ == "__main__":
 
 ~~~python
 reply = client.chat.completions.create(model=model, messages=messages)
-text = reply.choices[0].message.content or ""
+text = reply.choices[0].message.content or "" # content 可能为 None
 print(text)
 if reply.usage:
     print("输入 token：", reply.usage.prompt_tokens)
@@ -209,12 +201,6 @@ flowchart LR
 下面的 tools_demo.py 与 chat.py 相互独立，依赖仍然只有 openai。天气函数明确返回模拟数据，不会访问天气服务。
 
 ~~~python title="tools_demo.py" showLineNumbers
-import json
-import os
-
-from openai import OpenAI
-
-
 def get_weather(city: str) -> str:
     if not isinstance(city, str) or not city.strip():
         raise ValueError("city 必须是非空字符串")
@@ -222,7 +208,6 @@ def get_weather(city: str) -> str:
         {"city": city, "temperature_c": 25, "source": "模拟数据"},
         ensure_ascii=False,
     )
-
 
 TOOLS = {"get_weather": get_weather}
 SCHEMAS = [{
@@ -239,16 +224,16 @@ SCHEMAS = [{
     },
 }]
 
-
 def run_turn(client: OpenAI, messages: list, question: str) -> str:
     messages.append({"role": "user", "content": question})
-    for _ in range(8):
+    for _ in range(8): # 限制模型调用轮数，避免工具循环无限继续
         response = client.chat.completions.create(
             model=os.environ["OPENAI_MODEL"], messages=messages, tools=SCHEMAS
         )
         if response.choices[0].finish_reason not in {"stop", "tool_calls"}:
             raise RuntimeError("模型输出被截断或终止，不能继续工具循环")
         message = response.choices[0].message
+        # 先保存 assistant 的调用请求，再逐条追加 tool 结果
         messages.append(message.model_dump(exclude_none=True))
         if not message.tool_calls:
             return message.content or ""
@@ -269,7 +254,6 @@ def run_turn(client: OpenAI, messages: list, question: str) -> str:
     messages.append({"role": "assistant", "content": message})
     return message
 
-
 def main() -> None:
     messages = [{
         "role": "system",
@@ -277,7 +261,6 @@ def main() -> None:
     }]
     with OpenAI(api_key=os.environ["OPENAI_API_KEY"]) as client:
         print(run_turn(client, messages, "查询南京和上海的天气"))
-
 
 if __name__ == "__main__":
     main()
@@ -314,17 +297,6 @@ uv add openai "mcp>=1.23,<2" "mcp-server-time==2026.1.26"
 下面的 mcp_demo.py 是独立脚本。API key 和模型名沿用前面的环境变量，执行 uv run mcp_demo.py。
 
 ~~~python title="mcp_demo.py" showLineNumbers
-import asyncio
-import json
-import os
-import sys
-from contextlib import AsyncExitStack
-
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from openai import AsyncOpenAI
-
-
 async def main() -> None:
     services = {
         "time": StdioServerParameters(
@@ -335,6 +307,7 @@ async def main() -> None:
     schemas = []
     routes: dict[str, tuple[ClientSession, str]] = {}
     async with AsyncExitStack() as stack:
+        # 统一托管模型客户端、传输和会话，退出时逆序关闭
         client = await stack.enter_async_context(
             AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
         )
@@ -346,7 +319,7 @@ async def main() -> None:
             while True:
                 page = await session.list_tools(cursor=cursor)
                 for tool in page.tools:
-                    alias = f"mcp_tool_{len(schemas)}"
+                    alias = f"mcp_tool_{len(schemas)}" # 不同服务的同名工具用别名区分
                     routes[alias] = (session, tool.name)
                     schemas.append({
                         "type": "function",
@@ -358,7 +331,7 @@ async def main() -> None:
                             "parameters": tool.inputSchema,
                         },
                     })
-                cursor = page.nextCursor
+                cursor = page.nextCursor # 工具发现可能分页
                 if not cursor:
                     break
         if not schemas:
@@ -384,6 +357,7 @@ async def main() -> None:
                     arguments = json.loads(call.function.arguments)
                     if not isinstance(arguments, dict):
                         raise ValueError("工具参数必须是 JSON 对象")
+                    # 用模型返回的别名，找到原始 MCP 会话与工具名
                     session, original_name = routes[call.function.name]
                     result = await session.call_tool(original_name, arguments=arguments)
                     text = "\n".join(
@@ -400,7 +374,6 @@ async def main() -> None:
                 })
         print("达到工具调用步数上限，任务未完成。")
 
-
 if __name__ == "__main__":
     asyncio.run(main())
 ~~~
@@ -415,14 +388,10 @@ if __name__ == "__main__":
 
 本地工具与 MCP 工具也能共用分发器：本地分支调用 Python 函数，MCP 分支等待 session.call_tool。异步客户端里不要直接加入同步阻塞请求；命令行多轮输入如需放在异步循环中，可以用 await asyncio.to_thread(input, "你：")。
 
-<Callout type="note" title="协议不等于自动兼容">
-模型服务必须支持这些工具的 JSON Schema。MCP 的图片、资源、结构化结果，以及模型侧的多模态消息还需要专门适配；本例明确只回传文本。连接远程服务时还需补充认证、超时与重连策略。
-</Callout>
-
 ## 如何检查自己的实现
 
 先验证不依赖网络的部分：已有记忆文件是否能读取，流式回复是否完整写回历史，未知工具和错误参数能否得到配对的 tool 消息。
 
-再用自己的模型服务验证文本流、单工具和多工具请求，最后接入 MCP。代码可进行语法与静态审阅，但模型是否触发工具、服务是否返回特定扩展字段，需要在对应 SDK 和服务环境中实测。
+再验证文本流、单工具和多工具请求，最后接入 MCP。
 
 参考：[OpenAI 工具调用指南](https://developers.openai.com/api/docs/guides/function-calling)、[OpenAI Python SDK](https://github.com/openai/openai-python)、[MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)、[MCP 时间服务](https://github.com/modelcontextprotocol/servers/tree/main/src/time)。

@@ -4,14 +4,11 @@ description: '设置日志级别和格式，选择控制台或文件输出，并
 language: 'python'
 tags: 'Python,logging,日志'
 date: '2026-08-10'
-originTitle: 'Python 学习与速查索引'
-originHref: '/blog/python-review#常用模块'
 ---
 
 ```python title="console_logging.py" showLineNumbers
-import logging
-
 logging.basicConfig(
+    # 级别与格式在程序入口统一配置，其他模块复用 logger
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
@@ -43,13 +40,11 @@ logger.warning("配置尚未完整")
 下面是替代上面初始化配置的独立脚本，会在当前工作目录创建或追加 `app.log`。
 
 ```python title="file_logging.py" showLineNumbers
-import logging
-
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-    filename="app.log",
+    filename="app.log", # 写入工作目录下的日志文件
     filemode="a",
     encoding="utf-8",
 )

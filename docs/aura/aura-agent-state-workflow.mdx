@@ -13,10 +13,6 @@ IS_SHOW: TRUE
 
 当这些判断全部塞进一个函数，代码很快就会变成层层嵌套的 `if`。LangGraph 提供了另一种思路：把 Agent 看成一个围绕共享状态运行的工作流。
 
-<Callout type="note" title="这篇文章的边界">
-本文使用一个缩小后的示例解释状态图，而不是完整复刻 Aura 的生产代码。重点是理解组织方式，示例中的工具节点只模拟查询结果。
-</Callout>
-
 ## 从一次对话开始
 
 先把一次 Agent 对话拆成三个阶段：
@@ -47,21 +43,15 @@ flowchart LR
 状态负责在节点之间传递数据。最小示例只保留三个字段：
 
 ```python title="state.py" showLineNumbers
-from typing import Annotated
-from typing_extensions import TypedDict
-from langchain_core.messages import AnyMessage
-from langgraph.graph.message import add_messages
-
-
 class AgentState(TypedDict):
-    messages: Annotated[list[AnyMessage], add_messages]
+    messages: Annotated[list[AnyMessage], add_messages] # 按消息 ID 合并新增与更新
     needs_tool: bool
     tool_result: str
 ```
 
 `messages` 使用 `add_messages` 作为 reducer。没有相同 ID 的新消息会追加；相同 ID 的消息会更新已有条目，而不是简单覆盖整个列表。
 
-`needs_tool` 是本轮路由需要的临时判断，`tool_result` 则保存工具节点产生的结果。真实项目还可能加入用户标识、会话摘要、情绪状态或错误信息，但字段越多并不代表设计越好。
+`needs_tool` 是本轮路由需要的临时判断，`tool_result` 则保存工具节点产生的结果。
 
 <Callout type="tip" title="状态设计原则">
 只把后续节点确实需要的数据放进状态。数据库连接、客户端实例等运行依赖更适合通过依赖注入或运行配置传递，而不是塞进可持久化状态。
@@ -72,12 +62,8 @@ class AgentState(TypedDict):
 每个节点接收当前状态，并返回需要更新的部分：
 
 ```python title="nodes.py" showLineNumbers
-from langchain_core.messages import AIMessage
-
-from state import AgentState
-
-
 def analyze_request(state: AgentState):
+    # 节点只返回本次变更的字段，由图合并回状态
     question = str(state["messages"][-1].content)
     keywords = ("天气", "搜索", "查询")
     return {
@@ -85,11 +71,9 @@ def analyze_request(state: AgentState):
         "tool_result": "",  # 每轮重新判断，避免复用上一次查询结果
     }
 
-
 def call_tool(state: AgentState):
     question = state["messages"][-1].content
     return {"tool_result": f"模拟查询结果：{question}"}
-
 
 def reply(state: AgentState):
     if state.get("tool_result"):
@@ -100,25 +84,15 @@ def reply(state: AgentState):
     return {"messages": [AIMessage(content=content)]}
 ```
 
-这个例子没有真正调用大模型，但节点的输入输出形式已经与完整 Agent 一致。以后可以替换节点内部实现，而不用推翻整个工作流。
-
 ## 用条件边决定下一步
 
 路由函数不处理业务，只根据状态返回下一节点的名字：
 
 ```python title="graph.py" showLineNumbers
-from typing import Literal
-from langgraph.graph import END, START, StateGraph
-
-from nodes import analyze_request, call_tool, reply
-from state import AgentState
-
-
 def route_after_analysis(
     state: AgentState,
 ) -> Literal["tool", "reply"]:
     return "tool" if state["needs_tool"] else "reply"
-
 
 builder = StateGraph(AgentState)
 builder.add_node("analyze", analyze_request)
@@ -126,7 +100,7 @@ builder.add_node("tool", call_tool)
 builder.add_node("reply", reply)
 
 builder.add_edge(START, "analyze")
-builder.add_conditional_edges(
+builder.add_conditional_edges( # 路由结果映射到工具或回复节点
     "analyze",
     route_after_analysis,
     {"tool": "tool", "reply": "reply"},
@@ -140,12 +114,7 @@ agent = builder.compile()
 运行时只需要提供初始状态：
 
 ```python title="main.py" showLineNumbers
-from langchain_core.messages import HumanMessage
-
-from graph import agent
-
-
-result = agent.invoke({
+result = agent.invoke({ # 初始化每个状态字段，交给图依次执行节点
     "messages": [HumanMessage(content="帮我查询上海天气")],
     "needs_tool": False,
     "tool_result": "",
@@ -169,11 +138,3 @@ print(result["messages"][-1].content)
 ### 3. 状态需要克制
 
 最开始很容易把所有中间变量都放进状态。这样虽然方便，却会让持久化数据变大，也让节点之间产生隐式依赖。状态应该描述工作流需要共享的事实，而不是充当全局变量容器。
-
-## 与真实 Agent 的距离
-
-现在的示例只完成了单轮流程。真正的陪伴型 Agent 还需要区分短期对话与长期记忆，并决定何时写入、何时检索。
-
-关键词路由只用于看清条件边，不代表模型已经理解了任务，模拟工具也没有查询真实天气。状态图运行期间会传递状态；跨请求或重启后的保存需要额外配置 checkpointer，不能因为声明了 `messages` 就认为已经有长期记忆。
-
-继续查阅[原生 Agent：对话、记忆与工具调用](/blog/agent_01)和 [LangGraph 工作流笔记](/blog/langgraph)，分别补齐模型交互和持久化机制。

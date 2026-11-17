@@ -28,10 +28,8 @@ uv add "sqlalchemy[asyncio]>=2,<3" asyncpg
 先提供环境配置，在包目录创建 `__init__.py`。密码只从环境读取，不写入文章或仓库。
 
 ```python title="db/config.py" showLineNumbers
-import os
-
 HOST = os.environ.get("PGHOST", "127.0.0.1")
-PORT = int(os.environ.get("PGPORT", "5432"))
+PORT = int(os.environ.get("PGPORT", "5432")) # 环境变量是字符串，端口显式转成整数
 USER = os.environ["PGUSER"]
 PASSWORD = os.environ["PGPASSWORD"]
 DB_NAME = os.environ["PGDATABASE"]
@@ -40,11 +38,6 @@ DB_NAME = os.environ["PGDATABASE"]
 ### 创建异步引擎
 
 ```python title="db/engine.py" showLineNumbers
-from sqlalchemy import URL
-from sqlalchemy.ext.asyncio import create_async_engine
-
-from .config import DB_NAME, HOST, PASSWORD, PORT, USER
-
 # URL.create 会自动处理密码中的特殊字符（@ : / 等），比手写 f-string 拼接更安全
 PG_DATABASE_URL = URL.create(
     "postgresql+asyncpg",
@@ -61,12 +54,7 @@ engine = create_async_engine(PG_DATABASE_URL, pool_pre_ping=True)
 
 ### 会话工厂与声明式基类
 
-```python title="db/session.py" showLineNumbers {8,11,16}
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
-
-from .engine import engine
-
+```python title="db/session.py" showLineNumbers
 # async_sessionmaker 异步会话工厂，用于创建数据库会话
 # AsyncSession 异步数据库会话类
 SessionLocal = async_sessionmaker(
@@ -74,7 +62,6 @@ SessionLocal = async_sessionmaker(
     class_=AsyncSession,    # 指定使用异步会话类
     expire_on_commit=False, # 提交后保留已加载的属性，不自动重新查询
 )
-
 
 # DeclarativeBase ORM 声明式基类，所有数据模型都继承自它
 class Base(DeclarativeBase):
@@ -97,37 +84,16 @@ class Base(DeclarativeBase):
 ### 依赖注入函数
 
 ```python title="db/deps.py" showLineNumbers
-from collections.abc import AsyncGenerator
-
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from .session import SessionLocal
-
-
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with SessionLocal() as session:
-        yield session
+        yield session # 每个请求独享会话，依赖退出时关闭连接
 ```
 
 ## 定义实体类
 
-下面沿用虚拟伴侣配置的业务示例。关系两端都必须定义：先补齐 `User`，再定义配置模型。`TYPE_CHECKING` 下的导入仅帮助类型检查；应用启动时仍需实际导入两个模型模块，SQLAlchemy 才能解析关系名称。
+关系两端分别定义 `User` 和 `GirlfriendConfig`，启动时注册两个模型。
 
 ```python title="models/user.py" showLineNumbers
-from __future__ import annotations
-
-from datetime import datetime
-from typing import TYPE_CHECKING
-
-from sqlalchemy import BigInteger, DateTime, String, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from db.session import Base
-
-if TYPE_CHECKING:
-    from models.girlfriend_config import GirlfriendConfig
-
-
 class User(Base):
     __tablename__ = "users"
 
@@ -139,46 +105,13 @@ class User(Base):
     )
     girlfriend_configs: Mapped[list["GirlfriendConfig"]] = relationship(
         back_populates="user", cascade="save-update, merge, delete, delete-orphan", passive_deletes=True,
-        lazy="selectin",
+        lazy="selectin", # 批量预加载关系，避免访问字段时触发异步隐式 IO
     )
-```
-
-### 导入部分
-
-```python title="models/girlfriend_config.py" showLineNumbers
-from datetime import datetime
-from typing import TYPE_CHECKING, Optional
-
-# SQLAlchemy 数据类型
-from sqlalchemy import (
-    TEXT,        # 长文本
-    TIMESTAMP,   # 时间戳
-    Boolean,     # 布尔值
-    String,      # 字符串
-    Integer,     # 整数
-    BigInteger,  # 大整数
-    ForeignKey,  # 外键
-)
-
-# ORM 核心
-from sqlalchemy.orm import (
-    Mapped,        # 类型注解
-    mapped_column, # 列定义
-    relationship,  # 表关系
-)
-
-# SQL 函数
-from sqlalchemy.sql import func  # 数据库函数，如 NOW()
-
-from db.session import Base
-
-if TYPE_CHECKING:
-    from models.user import User  # 仅用于类型标注，避免循环导入
 ```
 
 ### 实体类定义
 
-```python title="models/girlfriend_config.py" showLineNumbers {8,18,26,35,43,50,58,77}
+```python title="models/girlfriend_config.py" showLineNumbers
 class GirlfriendConfig(Base):
     """
     女友配置实体类
@@ -334,20 +267,8 @@ class GirlfriendConfig(Base):
 | 5 | 执行 SQL，写入时按业务边界提交事务 |
 | 6 | 根据 SQL 返回内容定义接口返回值 |
 
-```python title="api/user.py" showLineNumbers {3,4,13,16}
-from typing import Optional
-
-from fastapi import APIRouter, Depends, Header
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from db.deps import get_db
-from models.user import User
-from app.core.errors import ParameterException
-from app.core.response import Result
-
+```python title="api/user.py" showLineNumbers
 router = APIRouter()
-
 
 @router.get("/info", response_model=Result[dict], summary="获取用户信息", tags=["角色信息"])
 async def get_user_info(
@@ -416,19 +337,6 @@ await db.delete(obj)         # 删除对象（异步方法，需要 await）
 下面是聚合查询的结构模板，假设另有包含 `user_id` 的 `Order` 模型，且 `User` 有 `city`、`age`、`is_active` 列；这些字段不属于上面的最小模型。实际调用放在异步函数中，按自己的实体替换。
 
 ```python title="query.py" showLineNumbers
-from sqlalchemy import (
-    select,       # 查询
-    insert,       # 插入
-    update,       # 更新
-    delete,       # 删除
-    text,         # 原生 SQL
-    func,         # SQL 函数
-    case,         # CASE 语句
-    cast,         # 类型转换
-    and_, or_, not_,                          # 逻辑操作
-    union, union_all, intersect, except_,     # 集合操作
-)
-
 # User、Order 为已定义的实体类；下面统计「订单数超过 5 的城市」
 stmt = (
     select(User.city, func.count(Order.id).label("order_count"))  # 1. 选择列（分组查询只能选分组列和聚合列）

@@ -1,30 +1,22 @@
 ---
 title: 'Java 基础：对象、集合与常用类型'
-description: '用可运行示例理解空集合、封装、final 与 static，整理基本类型、精确小数和日期时间。'
+description: '对象、集合、Map、Stream、Optional、字符串、金额、日期时间与文件读写的常用代码。'
 category: 'Java'
 tags: 'Java,基础语法,数据类型'
 date: '2026-08-05'
-readTime: '7 分钟'
+readTime: '15 分钟'
 author: 'Gin'
 IS_SHOW: true
 ---
 
-本文使用 Java 17，只依赖 JDK。来自 [Java 与 Spring Boot 学习索引](/blog/java-spring-notes)；进入 Web 工程前，先分清“没有对象”“空对象”和“对象内部状态”。
+Java 17。
 
-## 先运行一个完整示例
-
-将文件保存为 `JavaBasicsDemo.java`，执行 `javac -encoding UTF-8 JavaBasicsDemo.java`，再执行 `java JavaBasicsDemo`。
+## 对象、封装与类成员
 
 ```java title="JavaBasicsDemo.java" showLineNumbers
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-
 public class JavaBasicsDemo {
     public static void main(String[] args) {
+        // 空集合已有对象；null 需要先判空再调用方法
         List<String> empty = new ArrayList<>();
         List<String> missing = null;
         System.out.println(empty.isEmpty());
@@ -34,6 +26,7 @@ public class JavaBasicsDemo {
         book.setBookName("Java 笔记");
         System.out.println(book.getBookName());
 
+        // final 固定引用，列表中的元素仍可修改
         final List<String> names = new ArrayList<>();
         names.add("Gin");
         System.out.println(names);
@@ -60,7 +53,7 @@ public class JavaBasicsDemo {
     }
 
     static final class Counter {
-        private static int count;
+        private static int count; // 同一类的所有实例共享这个字段
 
         public static int addCount() {
             return ++count;
@@ -69,13 +62,21 @@ public class JavaBasicsDemo {
 }
 ```
 
-## 空集合与 null
+## 判空与默认值
 
-`new ArrayList<>()` 已经创建对象，只是没有元素；`null` 表示没有引用到对象。在 `null` 上调用 `isEmpty()` 会抛出 `NullPointerException`。
+```java title="判空与比较" showLineNumbers
+String name = null;
+String displayName = Objects.requireNonNullElse(name, "匿名");
 
-`items == null || items.isEmpty()` 使用短路求值：左侧成立后不会访问右侧。Spring 项目也可用 `org.springframework.util.CollectionUtils.isEmpty(items)`，纯 JDK 代码没有这个工具类。
+// equals 由常量调用，避免 name 为 null 时抛异常
+boolean matched = "Gin".equals(name);
+boolean same = Objects.equals(name, null); // true，允许两边都是 null
 
-`List.of("a")` 创建不可修改的列表；需要后续添加元素时用 `ArrayList`。列表是否为空，与列表是否可修改，是两件不同的事。
+Integer count = null;
+int safeCount = count == null ? 0 : count; // 先判空再拆箱
+List<String> items = null;
+boolean empty = items == null || items.isEmpty(); // 短路求值
+```
 
 ## 封装、修饰符与接口
 
@@ -87,13 +88,22 @@ public class JavaBasicsDemo {
 | `static` | 成员属于类，可通过类名访问，不需要先创建实例 |
 | `interface` | 定义类型契约，类通过 `implements` 实现它 |
 
-`book.bookName` 在其他不具备访问权限的类中不能直接读取，`book.getBookName()` 是显式提供的访问入口。`this.bookName = bookName` 左边是当前对象字段，右边是方法参数。
+```java title="接口与实现" showLineNumbers
+interface Formatter {
+    String format(String value);
 
-`final List<String> names` 固定的是引用，`names.add(...)` 仍能修改列表；`names = new ArrayList<>()` 才是禁止的重新赋值。`final` 不能自动让整个对象不可变。
+    default String formatOrEmpty(String value) {
+        return value == null ? "" : format(value);
+    }
+}
 
-接口不只允许方法签名：现代 Java 接口还可以包含常量、`default`、`static` 等方法。MyBatis 的 Mapper 是框架为接口创建代理的一个例子，并不意味着所有接口都由框架实现。
-
-`Counter` 只用来说明类级状态；`++count` 不是多线程下的原子操作，不应直接作为并发计数器或分布式 ID。
+class TrimFormatter implements Formatter {
+    @Override
+    public String format(String value) {
+        return value.strip(); // 同时去掉首尾的 Unicode 空白
+    }
+}
+```
 
 ## 基本类型与包装类
 
@@ -108,21 +118,212 @@ public class JavaBasicsDemo {
 | `char` | 一个 16 位 UTF-16 代码单元，使用单引号 | `Character` |
 | `boolean` | `true` 或 `false` | `Boolean` |
 
-泛型集合不能直接写 `List<int>`，应写 `List<Integer>`。包装类可以为 `null`，拆箱到基本类型时若值为 `null`，会抛出 `NullPointerException`。比较包装数值内容时不要依赖 `==`，它可能比较引用；可用 `Objects.equals(a, b)` 处理包含空值的比较。
+```java title="类型转换" showLineNumbers
+int number = Integer.parseInt("42");
+long id = Long.parseLong("1234567890123");
+String text = String.valueOf(number);
+List<Integer> numbers = List.of(1, 2, 3); // 泛型参数使用包装类
 
-一个可见字符不一定只占一个 `char`，部分表情和补充平面的字符需要一对 UTF-16 代码单元。完整 Unicode 处理需按 code point 理解。
+long large = 2_147_483_648L;
+// 超出 int 范围时抛 ArithmeticException，避免强转导致截断
+try {
+    int small = Math.toIntExact(large);
+    System.out.println(small);
+} catch (ArithmeticException e) {
+    System.out.println("超出 int 范围");
+}
+```
 
-## 精确数值与日期时间
+## List 增删、切片与数组转换
 
-`BigDecimal` 适合金额等十进制精确计算，优先用 `new BigDecimal("0.1")` 或合适的 `BigDecimal.valueOf(...)`。`new BigDecimal(0.1)` 会带入二进制浮点表示的误差；除法还要明确精度与舍入规则。`equals` 比较时也考虑 scale，数值比较通常使用 `compareTo`。
+```java title="List 常用操作" showLineNumbers
+List<String> names = new ArrayList<>(List.of("Gin", "Alice", "Bob"));
+names.add("Carol");
+names.set(0, "GIN");
+names.removeIf(name -> name.startsWith("B")); // 按条件删除，避免遍历时直接 remove
+names.sort(Comparator.naturalOrder());
 
-`BigInteger` 用于超过 `long` 范围的整数；二者都是对象，运算返回新值，不会原地修改。
+// subList 是原列表的视图；包一层 ArrayList 得到独立副本
+List<String> firstTwo = new ArrayList<>(names.subList(0, Math.min(2, names.size())));
+String[] array = names.toArray(String[]::new);
+List<String> copy = new ArrayList<>(Arrays.asList(array));
 
-| 类型 | 表达的概念 |
-| --- | --- |
-| `LocalDate` | 不带时区的日期 |
-| `LocalDateTime` | 不带时区或偏移量的本地日期时间 |
-| `Instant` | 时间线上的时刻，适合记录事件时间 |
-| `OffsetDateTime` / `ZonedDateTime` | 带偏移量或时区规则的日期时间 |
+List<Integer> numbers = new ArrayList<>(List.of(1, 2, 3));
+numbers.remove(Integer.valueOf(2)); // 删除值 2；remove(2) 则删除下标 2
+List<String> snapshot = List.copyOf(names); // 不可修改的快照，不接收 null 元素
+```
 
-`LocalDateTime` 不是带时区的时间戳。接口和数据库跨时区传输时，应先确定存储与展示约定，不能只把旧的 `Date` 替换成 `LocalDateTime` 就认为问题已经解决。
+## Set 去重与集合运算
+
+```java title="去重、交集、差集" showLineNumbers
+List<String> names = List.of("Gin", "Alice", "Gin");
+List<String> unique = new ArrayList<>(new LinkedHashSet<>(names)); // 保留首次出现顺序
+
+Set<Integer> left = new HashSet<>(Set.of(1, 2, 3));
+Set<Integer> right = Set.of(2, 3, 4);
+
+Set<Integer> intersection = new HashSet<>(left);
+intersection.retainAll(right); // [2, 3]，不修改 left
+Set<Integer> difference = new HashSet<>(left);
+difference.removeAll(right);   // [1]
+Set<Integer> union = new HashSet<>(left);
+union.addAll(right);          // [1, 2, 3, 4]，HashSet 不保证顺序
+```
+
+## Map 读取、累计与分组
+
+```java title="Map 常用操作" showLineNumbers
+Map<String, Integer> counts = new HashMap<>();
+for (String word : List.of("java", "python", "java")) {
+    counts.merge(word, 1, Integer::sum); // 不存在时写入 1，否则累加
+}
+int total = counts.getOrDefault("redis", 0);
+
+Map<String, List<String>> groups = new LinkedHashMap<>();
+for (String name : List.of("Alice", "Amy", "Bob")) {
+    // 首次遇到该首字母时才创建列表
+    groups.computeIfAbsent(name.substring(0, 1), key -> new ArrayList<>()).add(name);
+}
+counts.forEach((key, value) -> System.out.println(key + ": " + value));
+```
+
+## Stream 筛选、排序与转换
+
+```java title="Stream 数据整理" showLineNumbers
+record User(long id, String name, int age, String city) {}
+
+List<User> users = List.of(
+    new User(1L, "Gin", 24, "上海"),
+    new User(2L, "Alice", 28, "北京"),
+    new User(3L, "Bob", 17, "上海")
+);
+
+List<String> names = users.stream()
+    .filter(user -> user.age() >= 18)
+    .sorted(Comparator.comparingInt(User::age).reversed())
+    .map(User::name)
+    .toList(); // Java 16+，结果不可修改
+
+Map<String, List<User>> byCity = users.stream()
+    .collect(Collectors.groupingBy(User::city));
+Map<Long, User> byId = users.stream()
+    // ID 重复时保留先出现的对象，避免 toMap 抛异常
+    .collect(Collectors.toMap(User::id, user -> user, (first, second) -> first));
+int totalAge = users.stream().mapToInt(User::age).sum();
+String joined = users.stream().map(User::name).collect(Collectors.joining(", "));
+```
+
+## Optional 提取值与延迟默认值
+
+```java title="Optional 常用操作" showLineNumbers
+String rawName = "  Gin  ";
+String name = Optional.ofNullable(rawName)
+    .map(String::strip)
+    .filter(value -> !value.isEmpty())
+    .orElse("匿名");
+
+// orElseGet 的 Supplier 只在没有值时执行
+String fallback = Optional.<String>empty()
+    .orElseGet(() -> "user-" + UUID.randomUUID());
+
+String required = Optional.ofNullable(rawName)
+    .orElseThrow(() -> new IllegalArgumentException("name 不能为空"));
+```
+
+## 字符串拆分、拼接与替换
+
+```java title="字符串常用操作" showLineNumbers
+String raw = "  Java, Python,, Redis  ";
+List<String> tags = Arrays.stream(raw.strip().split(","))
+    .map(String::strip)
+    .filter(value -> !value.isEmpty())
+    .toList();
+String joined = String.join(" / ", tags);
+
+String[] columns = "a,b,".split(",", -1); // -1 保留末尾空字段
+String[] parts = "a.b.c".split("\\.");    // split 参数是正则，点需要转义
+String compact = "a  b\tc".replaceAll("\\s+", " ");
+String replaced = "a.b.c".replace(".", "/"); // replace 按字面量替换
+String label = String.format(Locale.ROOT, "%s: %.2f", "金额", 12.5);
+```
+
+## BigDecimal 金额计算
+
+```java title="金额与舍入" showLineNumbers
+BigDecimal price = new BigDecimal("19.90"); // 用字符串，避免 double 的精度误差
+BigDecimal subtotal = price.multiply(BigDecimal.valueOf(3));
+BigDecimal paid = subtotal.subtract(new BigDecimal("5.00"));
+BigDecimal average = paid.divide(BigDecimal.valueOf(3), 2, RoundingMode.HALF_UP);
+
+boolean sameValue = new BigDecimal("1.0").compareTo(new BigDecimal("1.00")) == 0;
+boolean sameScale = new BigDecimal("1.0").equals(new BigDecimal("1.00")); // false
+String display = average.setScale(2, RoundingMode.HALF_UP).toPlainString();
+
+BigInteger large = new BigInteger("9223372036854775808");
+BigInteger doubled = large.multiply(BigInteger.TWO); // 运算返回新对象
+```
+
+## 日期格式化、时间戳与时区
+
+```java title="日期与时间转换" showLineNumbers
+DateTimeFormatter format = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss")
+    .withResolverStyle(ResolverStyle.STRICT);
+LocalDateTime local = LocalDateTime.parse("2026-08-05 09:30:00", format);
+String text = local.plusDays(1).format(format);
+
+ZoneId zone = ZoneId.of("Asia/Shanghai");
+Instant instant = local.atZone(zone).toInstant(); // 本地时间先绑定时区
+long epochMillis = instant.toEpochMilli();
+LocalDateTime restored = Instant.ofEpochMilli(epochMillis).atZone(zone).toLocalDateTime();
+
+long days = ChronoUnit.DAYS.between(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 5));
+Duration elapsed = Duration.between(instant, instant.plusSeconds(90));
+System.out.println(elapsed.toSeconds()); // 90
+```
+
+## record、枚举与泛型方法
+
+```java title="数据对象与枚举" showLineNumbers
+record User(long id, String name) {} // 自动生成访问器、equals、hashCode、toString
+
+enum Status {
+    DRAFT("草稿"), PUBLISHED("已发布");
+
+    private final String label;
+
+    Status(String label) {
+        this.label = label;
+    }
+
+    public String label() {
+        return label;
+    }
+}
+
+class Lists {
+    // 返回 Optional，统一处理空列表
+    static <T> Optional<T> first(List<T> items) {
+        return items.isEmpty() ? Optional.empty() : Optional.ofNullable(items.get(0));
+    }
+}
+```
+
+## 文件读写与自动关闭资源
+
+```java title="UTF-8 文件读写" showLineNumbers
+Path directory = Files.createTempDirectory("java-notes-");
+Path file = directory.resolve("notes.txt");
+try {
+    Files.writeString(file, "Java\nRedis\n", StandardCharsets.UTF_8);
+    String text = Files.readString(file, StandardCharsets.UTF_8);
+
+    // Files.lines 返回持有文件句柄的 Stream，用完自动关闭
+    try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
+        List<String> nonEmpty = lines.filter(line -> !line.isBlank()).toList();
+        System.out.println(nonEmpty);
+    }
+} finally {
+    Files.deleteIfExists(file);
+    Files.deleteIfExists(directory);
+}
+```

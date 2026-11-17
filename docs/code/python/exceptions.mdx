@@ -4,8 +4,6 @@ description: '按错误类型处理失败，理解 else 与 finally，并使用 
 language: 'python'
 tags: 'Python,异常,基础语法'
 date: '2026-08-10'
-originTitle: 'Python 学习与速查索引'
-originHref: '/blog/python-review#基础语法'
 ---
 
 ```python title="exceptions_demo.py" showLineNumbers
@@ -17,11 +15,10 @@ def divide_from_text(value: str) -> None:
         print("除数不能为 0")
     except ValueError as exc:
         print(f"输入的不是整数：{exc}")
-    else:
+    else: # 仅 try 中没有异常时执行
         print(f"结果：{result}")
-    finally:
+    finally: # 成功或失败都会执行，用于资源清理
         print("本次计算结束")
-
 
 for text in ("2", "0", "hello"):
     divide_from_text(text)
@@ -47,12 +44,11 @@ def parse_positive_number(value: str) -> int:
     try:
         number = int(value)
     except ValueError as exc:
-        raise ValueError("请输入整数") from exc
+        raise ValueError("请输入整数") from exc # 保留原始异常链
 
     if number <= 0:
         raise ValueError("数值必须大于 0")
     return number
-
 
 print(parse_positive_number("3"))
 ```

@@ -31,7 +31,7 @@ git revert HEAD
 ```bash title="finish-revert.sh"
 git add app.py
 git diff --cached
-git revert --continue
+git revert --continue # 解决并暂存冲突后，完成反向提交
 ```
 
 需要放弃当前尚未完成的 revert 时执行 `git revert --abort`。如果反向提交已经创建完成，`--abort` 不会再撤销它；可以评估是否对这个反向提交再做一次 revert。

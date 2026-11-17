@@ -13,8 +13,6 @@ IS_SHOW: true
 
 本文采用 Python 3.10+、Pydantic 2、SQLAlchemy 2 和 PyJWT。数据库使用 MySQL 8；[SQLAlchemy 异步 ORM 实践](/blog/sqlalchemy) 使用 PostgreSQL，二者的驱动、连接串和日期类型需要按数据库选择，不能原样互换。按文末目录创建文件，并为 Python 包目录添加 `__init__.py`。
 
-这是可组合的学习示例，涵盖本地注册、登录和读取当前用户。数据库需提前创建；生产中的迁移、限流、令牌撤销与刷新机制需要另行设计。
-
 ## 核心基础设施
 
 ### 依赖与启动
@@ -53,14 +51,6 @@ IS_SHOW: true
 ### 配置
 
 ```python title="app/core/config.py" showLineNumbers
-from functools import lru_cache
-
-from pydantic import Field, SecretStr
-from sqlalchemy import URL
-
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
@@ -88,11 +78,9 @@ class Settings(BaseSettings):
             query={"charset": "utf8mb4"},
         )
 
-
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
 
 settings = get_settings()
 ```
@@ -102,18 +90,6 @@ settings = get_settings()
 ### 数据库
 
 ```python title="app/core/database.py" showLineNumbers
-from collections.abc import AsyncGenerator
-
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-from sqlalchemy.orm import DeclarativeBase
-
-from app.core.config import settings
-
-
 # 创建连接
 engine = create_async_engine(
     settings.DATABASE_URL,
@@ -129,11 +105,9 @@ SessionLocal = async_sessionmaker(
     expire_on_commit=False,
 )
 
-
 # ORM 的基类
 class Base(DeclarativeBase):
     pass
-
 
 # 依赖注入的入口
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -144,17 +118,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 ### 实体类
 
 ```python title="app/models/user.py" showLineNumbers
-from datetime import datetime, timezone
-
-from sqlalchemy import DateTime, String
-from sqlalchemy.orm import Mapped, mapped_column
-
-from app.core.database import Base
-
-
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
+    return datetime.now(timezone.utc).replace(tzinfo=None) # MySQL DATETIME 约定保存 UTC
 
 class User(Base):
     __tablename__ = "users"
@@ -176,23 +141,13 @@ MySQL 的 `DATETIME` 不保存时区，这里约定数据库中的无时区时�
 ### 密码与 JWT
 
 ```python title="app/core/security.py" showLineNumbers
-from datetime import datetime, timedelta, timezone
-
-import jwt
-from pwdlib import PasswordHash
-
-from app.core.config import get_settings
-
 password_hash = PasswordHash.recommended()
-
 
 def hash_password(password: str) -> str:
     return password_hash.hash(password)
 
-
 def verify_password(password: str, hashed_password: str) -> bool:
-    return password_hash.verify(password, hashed_password)
-
+    return password_hash.verify(password, hashed_password) # 校验原始密码与已存哈希
 
 def create_access_token(user_id: int) -> str:
     settings = get_settings()
@@ -206,13 +161,12 @@ def create_access_token(user_id: int) -> str:
         algorithm=settings.JWT_ALGORITHM,
     )
 
-
 def decode_access_token(token: str) -> dict:
     settings = get_settings()
     return jwt.decode(
         token,
         settings.JWT_SECRET_KEY,
-        algorithms=[settings.JWT_ALGORITHM],
+        algorithms=[settings.JWT_ALGORITHM], # 允许的签名算法由服务端指定
         options={"require": ["exp", "sub"]},
     )
 ```
@@ -220,7 +174,6 @@ def decode_access_token(token: str) -> dict:
 ### 依赖注入
 
 `Depends` 负责创建数据库会话和解析当前用户，路由函数只声明需要什么，不负责手动读取请求头或管理连接。
-
 
 <Tabs defaultValue="oauth2">
   <TabsList>
@@ -233,20 +186,8 @@ def decode_access_token(token: str) -> dict:
 适合配合 FastAPI 内置的 `OAuth2PasswordBearer`，能在 Swagger 里直接点 Authorize 测试。
 
 ```python title="app/api/deps.py" showLineNumbers
-from typing import Annotated
-
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from jwt.exceptions import InvalidTokenError
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.database import get_db
-from app.core.security import decode_access_token
-from app.models.user import User
-
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
-
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
@@ -259,7 +200,7 @@ async def get_current_user(
     )
 
     try:
-        payload = decode_access_token(token)
+        payload = decode_access_token(token) # 验签和过期检查通过后才读取 sub
         user_id = int(payload["sub"])
     except (InvalidTokenError, KeyError, TypeError, ValueError) as exc:
         raise credentials_error from exc
@@ -268,7 +209,6 @@ async def get_current_user(
     if user is None or not user.is_active:
         raise credentials_error
     return user
-
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
 ```
@@ -279,20 +219,8 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 适合需要返回统一 `Result` 格式的项目：认证失败时抛出自定义的 `AuthException`，由全局异常处理器统一转换成 `{code, message}` 结构。依赖函数无法靠 `return` 中断请求，如果直接返回错误对象，路由函数会把它当成「当前用户」继续往下执行，所以这里必须用异常来中断。
 
-```python title="app/api/deps.py" showLineNumbers {19,25,36}
-from typing import Annotated
-
-import jwt
-from fastapi import Depends, Header
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.database import get_db
-from app.core.errors import AuthException
-from app.core.security import decode_access_token
-from app.models.user import User
-
+```python title="app/api/deps.py" showLineNumbers
 DbSession = Annotated[AsyncSession, Depends(get_db)]
-
 
 async def get_current_user(
     db: DbSession,
@@ -301,7 +229,7 @@ async def get_current_user(
     if not authorization or not authorization.startswith("Bearer "):
         raise AuthException("未提供有效的认证信息")
 
-    token = authorization.removeprefix("Bearer ").strip()
+    token = authorization.removeprefix("Bearer ").strip() # 去掉协议前缀，保留令牌正文
 
     try:
         payload = decode_access_token(token)
@@ -316,7 +244,6 @@ async def get_current_user(
         raise AuthException("用户不存在或已被禁用")
     return user
 
-
 CurrentUser = Annotated[User, Depends(get_current_user)]
 ```
 
@@ -328,28 +255,11 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 没有登录接口就拿不到 token，`OAuth2PasswordBearer(tokenUrl="/auth/login")` 指向的正是这里。登录接口按 OAuth2 规范返回 `access_token` 与 `token_type`，Swagger 的 Authorize 按钮才能直接使用。
 
 ```python title="app/api/v1/auth.py" showLineNumbers
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-
-from app.api.deps import DbSession
-from app.core.errors import ParameterException
-from app.core.response import Result
-from app.core.security import create_access_token, hash_password, verify_password
-from app.models.user import User
-
 router = APIRouter(prefix="/auth", tags=["auth"])
-
 
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6, max_length=64)
-
 
 @router.post(
     "/register",
@@ -361,7 +271,7 @@ async def register(body: RegisterRequest, db: DbSession) -> Result[dict]:
     if exists is not None:
         raise ParameterException("邮箱已被注册", code=status.HTTP_409_CONFLICT)
 
-    hashed_password = await run_in_threadpool(hash_password, body.password)
+    hashed_password = await run_in_threadpool(hash_password, body.password) # 哈希计算移出事件循环
     user = User(email=body.email, hashed_password=hashed_password)
     db.add(user)
     try:
@@ -374,7 +284,6 @@ async def register(body: RegisterRequest, db: DbSession) -> Result[dict]:
             raise ParameterException("邮箱已被注册", code=409) from exc
         raise
     return Result.ok(data={"id": user.id, "email": user.email})
-
 
 @router.post("/login")
 async def login(
@@ -399,17 +308,10 @@ async def login(
 ### 集中异常处理
 
 ```python title="app/core/errors.py" showLineNumbers
-from fastapi import Request, status
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-from pwdlib.exceptions import UnknownHashError
-
-
 class ParameterException(Exception):
     def __init__(self, message: str, code: int = 400):
         self.message = message
         self.code = code
-
 
 class AuthException(Exception):
     """认证失败：未登录、令牌无效或已过期。"""
@@ -418,13 +320,11 @@ class AuthException(Exception):
         self.message = message
         self.code = code
 
-
 async def parameter_exception_handler(request: Request, exc: ParameterException):
     return JSONResponse(
-        status_code=exc.code,
+        status_code=exc.code, # HTTP 状态需要显式设置，不能只返回 JSON 中的 code
         content={"code": exc.code, "message": exc.message},
     )
-
 
 async def auth_exception_handler(request: Request, exc: AuthException):
     return JSONResponse(
@@ -432,7 +332,6 @@ async def auth_exception_handler(request: Request, exc: AuthException):
         content={"code": exc.code, "message": exc.message},
         headers={"WWW-Authenticate": "Bearer"},
     )
-
 
 async def unknown_hash_error_handler(request: Request, exc: UnknownHashError):
     return JSONResponse(
@@ -442,7 +341,6 @@ async def unknown_hash_error_handler(request: Request, exc: UnknownHashError):
             "message": "密码校验失败",
         },
     )
-
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     errors = []
@@ -462,7 +360,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         },
     )
 
-
 exception_handlers = [
     (ParameterException, parameter_exception_handler),
     (AuthException, auth_exception_handler),
@@ -476,14 +373,10 @@ exception_handlers = [
 <Details title="展开查看 Result 完整实现">
 
 ```python title="app/core/response.py" showLineNumbers
-from typing import Any, Generic, TypeVar
-
-from pydantic import BaseModel
-
 T = TypeVar("T")
 
-
 class Result(BaseModel, Generic[T]):
+    # T 保留 data 的具体类型，供响应校验和接口文档使用
     code: int = 200
     message: str = "success"
     data: T | None = None
@@ -502,16 +395,11 @@ class Result(BaseModel, Generic[T]):
 使用示例：
 
 ```python title="app/api/v1/user.py" showLineNumbers
-from fastapi import APIRouter
-
-from app.api.deps import CurrentUser
-from app.core.response import Result
-
 router = APIRouter(prefix="/users", tags=["users"])
-
 
 @router.get("/me", response_model=Result[dict])
 async def read_me(current_user: CurrentUser) -> Result[dict]:
+    # 依赖已完成身份解析，路由只组装需要返回的公开字段
     return Result.ok(data={"id": current_user.id, "email": current_user.email})
 ```
 
@@ -522,24 +410,11 @@ async def read_me(current_user: CurrentUser) -> Result[dict]:
 ### 应用入口
 
 ```python title="app/main.py" showLineNumbers
-import logging
-from contextlib import asynccontextmanager
-
-import uvicorn
-from fastapi import FastAPI
-
-from app.api.v1.auth import router as auth_router
-from app.api.v1.user import router as user_router
-from app.core.database import Base, engine
-from app.core.errors import exception_handlers
-from app.models.user import User  # noqa: F401  导入模型，表结构才会注册到 Base.metadata
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -551,7 +426,6 @@ async def lifespan(_: FastAPI):
     finally:
         await engine.dispose()
 
-
 def create_app() -> FastAPI:
     application = FastAPI(lifespan=lifespan)
     for exc_type, handler in exception_handlers:
@@ -559,7 +433,6 @@ def create_app() -> FastAPI:
     for router in (auth_router, user_router):
         application.include_router(router)
     return application
-
 
 app = create_app()
 

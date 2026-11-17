@@ -1,106 +1,61 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
-import { ArrowUpRight } from "lucide-react";
-import Link from "next/link";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PostList } from "@/components/post-list";
 import { categories, type Post } from "@/lib/post-types";
 
-export function PostExplorer({ posts }: { posts: Post[] }) {
+export function PostExplorer({
+  posts,
+  title = "最新笔记",
+}: {
+  posts: Post[];
+  title?: string;
+}) {
   const [active, setActive] = useState<(typeof categories)[number]>("全部");
-  const visiblePosts = active === "全部" ? posts : posts.filter((post) => post.category === active);
-  const groups = [...new Set(visiblePosts.map((post) => post.category))].map((category) => ({
-    category,
-    posts: visiblePosts.filter((post) => post.category === category),
-  }));
+  const visible =
+    active === "全部"
+      ? posts
+      : posts.filter((post) => post.category === active);
+  const available = categories.filter(
+    (category) =>
+      category === "全部" || posts.some((post) => post.category === category),
+  );
 
   return (
-    <section aria-labelledby="posts-heading" className="mt-20">
-      <div className="flex flex-col gap-6 border-b border-[var(--outline)] pb-7 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="eyebrow">Notes / {String(visiblePosts.length).padStart(2, "0")}</p>
-          <h2 id="posts-heading" className="mt-2 scroll-mt-24 text-3xl font-semibold md:text-4xl">技术笔记</h2>
-        </div>
-        {posts.length > 0 ? <div aria-label="文章分类" className="flex flex-wrap gap-2" role="group">
-          {categories.map((category) => (
-            <Button
-              aria-pressed={active === category}
-              className="h-9 rounded-full px-4 font-meta text-xs"
-              key={category}
-              onClick={() => setActive(category)}
-              type="button"
-              variant={active === category ? "default" : "outline"}
-            >
-              {category}
-            </Button>
-          ))}
-        </div> : null}
+    <section aria-labelledby="posts-heading" className="post-explorer">
+      <div className="section-heading">
+        <h2 id="posts-heading">{title}</h2>
+        <span className="quiet-count" aria-live="polite">
+          {visible.length} 篇
+        </span>
       </div>
-
-      {visiblePosts.length === 0 ? (
-        <div className="mt-8 border-y border-dashed border-[var(--outline)] py-14">
-          <p className="eyebrow">Preparing / 00</p>
-          <p className="mt-3 text-xl font-semibold">笔记整理中</p>
-          <p className="mt-2 max-w-xl text-sm leading-7 text-[var(--muted)]">正在重新梳理内容结构，整理完成后会从这里重新发布。</p>
+      <div aria-label="文章分类" className="category-filter" role="group">
+        {available.map((category) => (
+          <button
+            aria-pressed={active === category}
+            className="focus-ring"
+            key={category}
+            onClick={() => setActive(category)}
+            type="button"
+          >
+            {category}
+          </button>
+        ))}
+      </div>
+      {visible.length ? (
+        <PostList key={active} posts={visible} />
+      ) : (
+        <div className="empty-state">
+          <p>这个分类还没有笔记</p>
+          <button
+            className="text-link focus-ring"
+            onClick={() => setActive("全部")}
+            type="button"
+          >
+            查看全部笔记
+          </button>
         </div>
-      ) : <motion.div layout className="mt-8 space-y-12">
-        <AnimatePresence mode="popLayout">
-          {groups.map((group) => (
-            <motion.section
-              aria-label={`${group.category}笔记`}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              initial={{ opacity: 0 }}
-              key={group.category}
-              layout
-            >
-              <div className="mb-5 flex items-baseline gap-3 border-b border-[var(--outline)] pb-3">
-                <h3 className="text-xl font-semibold">{group.category}</h3>
-                <span className="meta text-xs text-[var(--muted)]">{group.posts.length} 篇</span>
-              </div>
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                {group.posts.map((post) => {
-                  const featured = post.slug === posts[0]?.slug && active === "全部";
-                  return (
-                    <motion.article
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.98 }}
-                      initial={{ opacity: 0, y: 12 }}
-                      key={post.slug}
-                      layout
-                      transition={{ duration: 0.22 }}
-                      className={featured ? "md:col-span-2" : undefined}
-                    >
-                      <Link className="focus-ring group block h-full rounded-[18px]" href={`/blog/${post.slug}`}>
-                        <Card className={`h-full justify-between overflow-hidden transition duration-300 group-hover:-translate-y-1 group-hover:border-[var(--primary)] group-hover:shadow-[0_18px_50px_rgba(36,42,66,.11)] ${featured ? "min-h-60" : "min-h-72"}`}>
-                          <CardHeader>
-                            <div className="flex items-center justify-between gap-4">
-                              <div className="flex items-center gap-2">
-                                {featured ? <span className="tag">最新笔记</span> : null}
-                              </div>
-                              <ArrowUpRight className="text-[var(--muted)] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[var(--primary)]" size={19} />
-                            </div>
-                            <CardTitle className="mt-3 break-words text-2xl leading-tight"><h4>{post.title}</h4></CardTitle>
-                            <CardDescription className="line-clamp-3 text-[15px] leading-7">{post.description}</CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="mb-5 flex flex-wrap gap-2">{post.tags.map((tag) => <span className="tag" key={tag}>{tag}</span>)}</div>
-                            <div className="meta flex items-center justify-between border-t border-[var(--outline)] pt-4 text-xs text-[var(--muted)]">
-                              <time>{post.date}</time><span>{post.readTime}</span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </Link>
-                    </motion.article>
-                  );
-                })}
-              </div>
-            </motion.section>
-          ))}
-        </AnimatePresence>
-      </motion.div>}
+      )}
     </section>
   );
 }

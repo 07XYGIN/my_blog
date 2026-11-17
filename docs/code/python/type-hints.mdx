@@ -4,25 +4,19 @@ description: '标注集合、可选值与联合类型，使用 Literal 限定取
 language: 'python'
 tags: 'Python,typing,类型标注'
 date: '2026-08-10'
-originTitle: 'Python 学习与速查索引'
-originHref: '/blog/python-review#基础语法'
 ---
 
 ```python title="type_hints_demo.py" showLineNumbers
-from typing import Annotated, Literal
-
-
 def get_full_name(first_name: str, last_name: str) -> str:
     return first_name.title() + " " + last_name.title()
-
 
 names: list[str] = ["gin", "alex"]
 scores: dict[str, int] = {"gin": 90}
 point: tuple[int, int] = (10, 20)
 tags: set[str] = {"Python", "typing"}
-nickname: str | None = None
+nickname: str | None = None # 允许空值；不等于函数参数可以省略
 user_id: str | int = 1
-mode: Literal["read", "write"] = "read"
+mode: Literal["read", "write"] = "read" # 给静态检查器限制候选值
 username: Annotated[str, "显示名称"] = "gin"
 
 print(get_full_name(names[0], "smith"), scores, point, tags, nickname, user_id, mode, username)

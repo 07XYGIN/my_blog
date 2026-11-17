@@ -7,6 +7,7 @@
     "build": "next build",
     "build:static": "cross-env STATIC_EXPORT=true next build",
     "start": "next start",
+    "resume:pdf": "node scripts/export-resume.mjs",
     "lint": "eslint",
     "ui": "shadcn"
   },
@@ -42,6 +43,7 @@
     "cross-env": "^10.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
+    "playwright": "^1.65.1",
     "shadcn": "^4.23.0",
     "tailwindcss": "^4",
     "typescript": "^5.9.3"

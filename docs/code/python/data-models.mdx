@@ -4,26 +4,20 @@ description: '自动生成数据类方法，用 default_factory 隔离可变字�
 language: 'python'
 tags: 'Python,dataclass,property,对象'
 date: '2026-08-10'
-originTitle: 'Python 学习与速查索引'
-originHref: '/blog/python-review#常用装饰器'
 ---
 
 ```python title="data_models.py" showLineNumbers
-from dataclasses import dataclass, field
-
-
 @dataclass
 class Tool:
     name: str
-    tags: list[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list) # 每个实例创建自己的列表
 
-    @property
+    @property # 读取 tool.display_name 时计算，调用处不加括号
     def display_name(self) -> str:
         return self.name.title()
 
     def get_display_name(self, prefix: str) -> str:
         return f"{prefix}-{self.name}"
-
 
 tool = Tool("join")
 other = Tool("join")

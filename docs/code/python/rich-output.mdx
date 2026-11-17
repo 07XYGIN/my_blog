@@ -4,14 +4,10 @@ description: '给终端信息设置文字颜色、背景色和对齐，并避免
 language: 'python'
 tags: 'Python,Rich,终端'
 date: '2026-08-10'
-originTitle: 'Python 学习与速查索引'
-originHref: '/blog/python-review#常用模块'
 ---
 
 ```python title="rich_output.py" showLineNumbers
-from rich.console import Console
-
-console = Console()
+console = Console() # 统一控制终端输出，标记语法只影响显示
 console.print("这是一条信息", style="bold blue")
 console.print("这是 RGB 文字颜色", style="rgb(0, 255, 0)")
 console.print("这是背景颜色", style="black on rgb(0, 255, 0)")

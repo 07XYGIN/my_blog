@@ -7,14 +7,12 @@ date: '2026-10-19'
 ---
 
 ~~~python title="redis_helpers.py" showLineNumbers
-import redis
-from typing import Optional
 REDIS_POOL = redis.ConnectionPool(
     host='localhost',
     port=6379,
     db=0,
     max_connections=10,
-    decode_responses=True,
+    decode_responses=True, # GET 返回字符串，省去手动解码 bytes
     socket_timeout=5,
     socket_connect_timeout=5
 )
@@ -32,8 +30,7 @@ def redis_set(key: str, value: str, timeout: Optional[int] = None) -> bool:
     :return: 成功返回True；连接或命令错误会抛出异常
     """
     client = get_redis_client()
-    return client.set(key, value, ex=timeout)
-
+    return client.set(key, value, ex=timeout) # 值与过期时间在同一条命令中设置
 
 def redis_get(key: str) -> Optional[str]:
     """
@@ -44,7 +41,6 @@ def redis_get(key: str) -> Optional[str]:
     client = get_redis_client()
     return client.get(key)
 
-
 def redis_delete(key: str) -> bool:
     """
     删除键
@@ -53,7 +49,6 @@ def redis_delete(key: str) -> bool:
     """
     client = get_redis_client()
     return bool(client.delete(key))
-
 
 def redis_exists(key: str) -> bool:
     """
@@ -73,10 +68,6 @@ def redis_expire(key: str, timeout: int) -> bool:
     """
     client = get_redis_client()
     return client.expire(key, timeout)
-
-
-
-
 ~~~
 
 ## 依赖与连接
@@ -96,9 +87,7 @@ uv add redis
 把上面的函数保存为 `redis_helpers.py`，在同目录的脚本中调用：
 
 ```python title="main.py" showLineNumbers
-from redis_helpers import redis_delete, redis_expire, redis_exists, redis_get, redis_set
-
-redis_set("demo:name", "Gin", timeout=60)
+redis_set("demo:name", "Gin", timeout=60) # 60 秒后自动过期
 print(redis_get("demo:name"))       # Gin
 print(redis_exists("demo:name"))    # True
 redis_expire("demo:name", 120)

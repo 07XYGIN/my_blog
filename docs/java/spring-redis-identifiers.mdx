@@ -21,6 +21,7 @@ IS_SHOW: true
 <dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-data-redis</artifactId>
+    <!-- 版本由 Spring Boot parent/BOM 管理 -->
 </dependency>
 <dependency>
     <groupId>cn.hutool</groupId>
@@ -37,8 +38,8 @@ spring:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
-      connect-timeout: 2s
-      timeout: 2s
+      connect-timeout: 2s # 建立连接的超时
+      timeout: 2s # 命令读写的超时
 ```
 
 示例假设本地实例不需要认证。实际环境若有用户名、密码或 TLS，应按该实例要求配置，密码通过部署环境注入。
@@ -48,16 +49,6 @@ spring:
 `StringRedisTemplate` 负责字符串键和值，`ObjectMapper` 负责对象和 JSON 之间的转换。Spring Boot 的 Web starter 会自动配置 Jackson 2 的 `ObjectMapper`，这里复用容器实例。
 
 ```java title="src/main/java/com/example/notes/JsonCache.java" showLineNumbers
-package com.example.notes;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.time.Duration;
-import java.util.Objects;
-import java.util.Optional;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.stereotype.Component;
-
 @Component
 public class JsonCache {
     private final StringRedisTemplate redis;
@@ -82,14 +73,14 @@ public class JsonCache {
         } catch (JsonProcessingException exception) {
             throw new IllegalArgumentException("缓存值无法序列化为 JSON", exception);
         }
-        redis.opsForValue().set(key, json, ttl);
+        redis.opsForValue().set(key, json, ttl); // 值与 TTL 一起写入，避免留下无期限缓存
     }
 
     public <T> Optional<T> get(String key, Class<T> type) {
         requireKey(key);
         Objects.requireNonNull(type, "目标类型不能为空");
         String json = redis.opsForValue().get(key);
-        if (json == null) {
+        if (json == null) { // 未命中直接返回空值，省去额外的 EXISTS 请求
             return Optional.empty();
         }
         try {
@@ -126,12 +117,6 @@ Jackson 2 的序列化与反序列化方法会抛出受检异常，必须捕获�
 下面的组件演示 `JsonCache` 的组合方式。它不包含数据库查询；未命中时返回空值，是否查数据库、重建缓存或容忍 Redis 故障，应由实际业务决定。
 
 ```java title="src/main/java/com/example/notes/ProfileCache.java" showLineNumbers
-package com.example.notes;
-
-import java.time.Duration;
-import java.util.Optional;
-import org.springframework.stereotype.Service;
-
 @Service
 public class ProfileCache {
     private final JsonCache cache;
@@ -156,7 +141,7 @@ public class ProfileCache {
         if (userId == null || userId.isBlank()) {
             throw new IllegalArgumentException("用户 ID 不能为空");
         }
-        return "cache:profile:v1:" + userId;
+        return "cache:profile:v1:" + userId; // 命名空间和版本隔离不同缓存格式
     }
 
     public record Profile(String id, String displayName) {}
@@ -178,21 +163,13 @@ public class ProfileCache {
 ```yaml title="application.yml 中的 ID 配置" showLineNumbers
 id:
   snowflake:
-    worker-id: ${SNOWFLAKE_WORKER_ID}
+    worker-id: ${SNOWFLAKE_WORKER_ID} # 同一 ID 空间中，每个实例使用不同编号组合
     datacenter-id: ${SNOWFLAKE_DATACENTER_ID}
 ```
 
 两个编号没有默认值，启动前必须由环境提供。Hutool 5.8.x 的这两个编号范围均为 `0..31`；同一 ID 空间内同时运行的实例必须使用不同组合，不能把文章里的某组固定数字复制到所有实例。
 
 ```java title="src/main/java/com/example/notes/SnowflakeConfig.java" showLineNumbers
-package com.example.notes;
-
-import cn.hutool.core.lang.Snowflake;
-import cn.hutool.core.util.IdUtil;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-
 @Configuration
 public class SnowflakeConfig {
     @Bean
@@ -202,7 +179,7 @@ public class SnowflakeConfig {
         if (workerId < 0 || workerId > 31 || datacenterId < 0 || datacenterId > 31) {
             throw new IllegalArgumentException("雪花实例编号必须在 0 到 31 之间");
         }
-        return IdUtil.getSnowflake(workerId, datacenterId);
+        return IdUtil.getSnowflake(workerId, datacenterId); // 单例复用同一个序列生成器
     }
 }
 ```
@@ -210,11 +187,6 @@ public class SnowflakeConfig {
 `@Bean` 默认是 Spring 单例。调用方注入这个实例反复生成 ID，不要每生成一个 ID 就创建新的生成器。
 
 ```java title="src/main/java/com/example/notes/IdentifierService.java" showLineNumbers
-package com.example.notes;
-
-import cn.hutool.core.lang.Snowflake;
-import org.springframework.stereotype.Service;
-
 @Service
 public class IdentifierService {
     private final Snowflake snowflake;
@@ -224,7 +196,7 @@ public class IdentifierService {
     }
 
     public String nextId() {
-        return Long.toString(snowflake.nextId());
+        return Long.toString(snowflake.nextId()); // 字符串避免 JavaScript Number 丢失精度
     }
 }
 ```
@@ -240,5 +212,3 @@ public class IdentifierService {
 JavaScript `Number` 能精确表示的最大安全整数为 `2^53 - 1`，即 `9007199254740991`。常见雪花 ID 会超过这个范围，因此 `IdentifierService` 返回十进制字符串；数据库仍可以存 `BIGINT`，接口 DTO 中的该字段使用 `String`。
 
 如果不需要数字形式和时间趋势，也可考虑标准库的 `UUID.randomUUID().toString()`，无需引入 Hutool。它解决的是另一种 ID 生成需求，存储形式和索引特性也不同。
-
-返回 [Java 与 Spring Boot 学习索引](/blog/java-spring-notes)。

@@ -4,19 +4,14 @@ description: '通过 with 管理文件，将 Python 数据写入 JSON，并区�
 language: 'python'
 tags: 'Python,文件,JSON'
 date: '2026-08-10'
-originTitle: 'Python 学习与速查索引'
-originHref: '/blog/python-review#基础语法'
 ---
 
 ```python title="files_json_demo.py" showLineNumbers
-import json
-from pathlib import Path
-
 path = Path("profile.json")
 data = {"name": "张三", "age": 25, "hobbies": ["读书"], "is_active": True}
 
 with path.open("w", encoding="utf-8") as file:
-    json.dump(data, file, ensure_ascii=False, indent=2)
+    json.dump(data, file, ensure_ascii=False, indent=2) # 保留中文；with 退出时关闭文件
 
 with path.open("r", encoding="utf-8") as file:
     restored = json.load(file)
@@ -38,7 +33,7 @@ print(restored["name"])
 ```python title="write_lines.py" showLineNumbers
 with open("notes.txt", "w", encoding="utf-8") as file:
     file.write("第一行\n")
-    file.writelines(["第二行\n", "第三行\n"])
+    file.writelines(["第二行\n", "第三行\n"]) # 不会自动补换行，需要自行写 \n
 ```
 
 `write()` 和 `writelines()` 都不会自动补换行。创建文件不会自动创建父目录，目标位于子目录时要先准备目录。
@@ -46,10 +41,8 @@ with open("notes.txt", "w", encoding="utf-8") as file:
 ## JSON 字符串与文件的区别
 
 ```python title="json_string.py" showLineNumbers
-import json
-
 data = {"name": "张三", "is_active": True}
-json_text = json.dumps(data, ensure_ascii=False, indent=2)
+json_text = json.dumps(data, ensure_ascii=False, indent=2) # dumps 返回字符串，不写文件
 parsed = json.loads(json_text)
 print(json_text)
 print(parsed)

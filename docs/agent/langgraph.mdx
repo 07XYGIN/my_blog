@@ -13,7 +13,7 @@ LangGraph 把一次任务拆成共享状态上的节点与边。模型调用可�
 
 如果只需要标准的模型与工具循环，可以先看 [LangChain](/blog/langchain)；需要明确控制状态、分支和恢复过程时，再直接构建图。
 
-## 环境与代码边界
+## 环境与依赖
 
 本文使用 Python 3.11+、LangGraph 1.x 和 LangChain 的 OpenAI 接入包。以下依赖范围对应本文使用的接口，实际项目请提交验证后的 uv.lock。
 
@@ -34,41 +34,29 @@ uv add "langgraph>=1.2.12,<1.3" "langchain-openai>=1,<2"
 下面是一个不需要模型或网络的完整脚本：
 
 ~~~python title="state_graph.py" showLineNumbers
-import operator
-from typing import Annotated, Literal
-
-from langgraph.graph import END, START, StateGraph
-from typing_extensions import TypedDict
-
-
 class State(TypedDict):
     question: str
-    trace: Annotated[list[str], operator.add]
+    trace: Annotated[list[str], operator.add] # 节点返回的 trace 追加到原列表
     result: str
-
 
 def validate(state: State) -> dict:
     return {"trace": ["validate"]}
 
-
 def route(state: State) -> Literal["answer", "reject"]:
     return "answer" if state["question"].strip() else "reject"
-
 
 def answer(state: State) -> dict:
     return {"trace": ["answer"], "result": f"收到：{state['question']}"}
 
-
 def reject(state: State) -> dict:
     return {"trace": ["reject"], "result": "问题不能为空"}
-
 
 builder = StateGraph(State)
 builder.add_node("validate", validate)
 builder.add_node("answer", answer)
 builder.add_node("reject", reject)
 builder.add_edge(START, "validate")
-builder.add_conditional_edges("validate", route)
+builder.add_conditional_edges("validate", route) # 返回的节点名决定分支
 builder.add_edge("answer", END)
 builder.add_edge("reject", END)
 app = builder.compile()
@@ -85,7 +73,7 @@ print(app.invoke(inputs))
 
 ~~~python
 for update in app.stream(inputs, stream_mode="updates"):
-    print(update)
+    print(update) # 每项仅包含本次节点产生的局部更新
 ~~~
 
 updates 输出节点返回的局部更新，例如 `{"validate": {"trace": ["validate"]}}`；values 输出每一步合并后的完整状态。这个图没有调用模型，因此 messages 模式不会产生模型文本流。
@@ -97,20 +85,11 @@ Checkpointer 在图的执行过程中保存检查点。再次使用同一个 thr
 下面是独立的聊天脚本。两次 invoke() 共用同一个 app、checkpointer 和 thread_id，第二次只提交新消息。
 
 ~~~python title="persistent_chat.py" showLineNumbers
-import os
-
-from langchain_core.messages import SystemMessage
-from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.graph import END, START, MessagesState, StateGraph
-
-
 model = ChatOpenAI(
     model=os.environ["OPENAI_MODEL"],
     api_key=os.environ["OPENAI_API_KEY"],
     base_url=os.environ.get("OPENAI_BASE_URL"),
 )
-
 
 def chat(state: MessagesState) -> dict:
     response = model.invoke([
@@ -119,14 +98,13 @@ def chat(state: MessagesState) -> dict:
     ])
     return {"messages": [response]}
 
-
 builder = StateGraph(MessagesState)
 builder.add_node("chat", chat)
 builder.add_edge(START, "chat")
 builder.add_edge("chat", END)
-checkpointer = InMemorySaver()
+checkpointer = InMemorySaver() # 同一个实例保存同一进程中的多轮状态
 app = builder.compile(checkpointer=checkpointer)
-config = {"configurable": {"thread_id": "chat-demo"}}
+config = {"configurable": {"thread_id": "chat-demo"}} # thread_id 相同才会续接历史
 
 app.invoke({"messages": [("user", "我正在学习 LangGraph。变化少一些，先学基础。")]}, config)
 result = app.invoke({"messages": [("user", "结合刚才的背景，下一步学什么？")]}, config)
@@ -146,8 +124,6 @@ uv add langgraph-checkpoint-postgres "psycopg[binary,pool]"
 以下片段复用 persistent_chat.py 的 builder。DATABASE_URL 从环境读取，所有图调用都发生在连接的 with 作用域中。
 
 ~~~python
-from langgraph.checkpoint.postgres import PostgresSaver
-
 with PostgresSaver.from_conn_string(os.environ["DATABASE_URL"]) as saver:
     saver.setup()  # 首次使用需要建表；服务中放在初始化阶段。
     persistent_app = builder.compile(checkpointer=saver)
@@ -183,6 +159,7 @@ for chunk, metadata in app.stream(
     {"configurable": {"thread_id": "stream-demo"}},
     stream_mode="messages",
 ):
+    # 只展示 chat 节点，过滤其他节点的模型输出
     if metadata.get("langgraph_node") != "chat":
         continue
     if isinstance(chunk.content, str):
@@ -197,8 +174,6 @@ print()
 不通过图时，也可以为单独的模型配置回调：
 
 ~~~python
-from langchain_core.callbacks import StreamingStdOutCallbackHandler
-
 streaming_model = ChatOpenAI(
     model=os.environ["OPENAI_MODEL"],
     api_key=os.environ["OPENAI_API_KEY"],
@@ -207,7 +182,7 @@ streaming_model = ChatOpenAI(
 )
 streaming_model.invoke(
     "用一句话解释 LangGraph。",
-    config={"callbacks": [StreamingStdOutCallbackHandler()]},
+    config={"callbacks": [StreamingStdOutCallbackHandler()]}, # 回调直接向终端输出增量
 )
 ~~~
 
@@ -223,7 +198,7 @@ for chunk, metadata in app.stream(
     stream_mode="messages",
 ):
     if metadata.get("langgraph_node") == "chat":
-        full = chunk if full is None else full + chunk
+        full = chunk if full is None else full + chunk # 合并后再读取完整的用量元数据
 
 print(full.usage_metadata if full is not None else None)
 ~~~
@@ -237,38 +212,25 @@ print(full.usage_metadata if full is not None else None)
 下面是独立脚本。第二步使用模型的工具调用能力生成结构化结果，模型服务需要支持这一能力；两次调用也意味着额外的耗时和用量。
 
 ~~~python title="structured_stream.py" showLineNumbers
-import os
-from typing import Any
-
-from langchain_openai import ChatOpenAI
-from langgraph.graph import END, START, StateGraph
-from pydantic import BaseModel, Field
-from typing_extensions import TypedDict
-
-
 class Metadata(BaseModel):
     topic: str = Field(description="正文的主题")
     keywords: list[str] = Field(description="正文中的关键概念")
 
-
 class Answer(BaseModel):
     msg: str
     metadata: Metadata
-
 
 class AnswerState(TypedDict):
     question: str
     msg: str
     answer: dict[str, Any]
 
-
 model = ChatOpenAI(
     model=os.environ["OPENAI_MODEL"],
     api_key=os.environ["OPENAI_API_KEY"],
     base_url=os.environ.get("OPENAI_BASE_URL"),
 )
-metadata_model = model.with_structured_output(Metadata, method="function_calling")
-
+metadata_model = model.with_structured_output(Metadata, method="function_calling") # 按 schema 解析结果
 
 def stream_msg(state: AnswerState) -> dict:
     response = model.invoke([
@@ -279,14 +241,12 @@ def stream_msg(state: AnswerState) -> dict:
         raise TypeError("本例仅处理纯文本回复")
     return {"msg": response.content}
 
-
 def structure(state: AnswerState) -> dict:
     metadata = metadata_model.invoke(
         "提取以下正文的主题与关键概念，不补充正文之外的信息：\n" + state["msg"]
     )
-    answer = Answer(msg=state["msg"], metadata=metadata)
+    answer = Answer(msg=state["msg"], metadata=metadata) # 保留已展示的原文
     return {"answer": answer.model_dump()}
-
 
 builder = StateGraph(AnswerState)
 builder.add_node("stream_msg", stream_msg)
@@ -314,21 +274,17 @@ for mode, data in app.stream(inputs, stream_mode=["messages", "updates"]):
 如果希望一个节点完成这两步，可以通过 get_stream_writer() 显式发送正文增量。下面复用 structured_stream.py 的模型、schema 和 AnswerState，创建另一个独立的图：
 
 ~~~python
-from langgraph.config import get_stream_writer
-
-
 def chat_custom(state: AnswerState) -> dict:
-    writer = get_stream_writer()
+    writer = get_stream_writer() # 节点通过 custom 通道发送自定义事件
     msg = ""
     for chunk in model.stream(state["question"]):
         if isinstance(chunk.content, str) and chunk.content:
             msg += chunk.content
-            writer({"field": "msg", "delta": chunk.content})
+            writer({"field": "msg", "delta": chunk.content}) # 正文逐段发送，元数据不进这个通道
 
     metadata = metadata_model.invoke("提取正文的主题与关键概念：\n" + msg)
     answer = Answer(msg=msg, metadata=metadata)
     return {"msg": msg, "answer": answer.model_dump()}
-
 
 custom_builder = StateGraph(AnswerState)
 custom_builder.add_node("chat", chat_custom)
@@ -353,30 +309,15 @@ custom 是自己定义的数据协议，没有 stream_field="msg" 这样的内�
 人工审批需要在工具执行前加入一个 review 节点。以下完整脚本对整批调用统一批准或拒绝：展示所有调用，只有明确输入 approve 才执行；拒绝时为每条调用补齐结果消息。
 
 ~~~python title="approved_tools.py" showLineNumbers
-import json
-import os
-from typing import Literal
-
-from langchain_core.messages import AIMessage, ToolMessage
-from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.graph import END, START, MessagesState, StateGraph
-from langgraph.prebuilt import ToolNode, tools_condition
-from langgraph.types import Command, interrupt
-
-
 @tool
 def get_weather(city: str) -> str:
     """查询城市天气；本例只返回明确标记的演示数据。"""
     return f"演示数据：{city}，晴，25°C；不是实时天气。"
 
-
 @tool
 def create_ticket(summary: str) -> str:
     """提交工单；本例仅模拟返回结果，不写入外部系统。"""
     return f"模拟提交成功：{summary}"
-
 
 tools = [get_weather, create_ticket]
 model = ChatOpenAI(
@@ -386,35 +327,32 @@ model = ChatOpenAI(
 )
 model_with_tools = model.bind_tools(tools)
 
-
 class ApprovalState(MessagesState):
     approved: bool
 
-
 def call_model(state: ApprovalState) -> dict:
     return {"messages": [model_with_tools.invoke(state["messages"])]}
-
 
 def human_approval(state: ApprovalState) -> dict:
     last = state["messages"][-1]
     if not isinstance(last, AIMessage) or not last.tool_calls:
         raise ValueError("审批节点需要带工具调用的 AIMessage")
     calls = last.tool_calls
+    # 暂停时保存状态；恢复后 decision 接收 Command(resume=...) 的值
     decision = interrupt({"question": "是否执行这一批工具？", "tool_calls": calls})
     if decision == "approve":
         return {"approved": True}
     return {
         "approved": False,
         "messages": [
+            # 拒绝也要给每条调用补结果，保持请求与结果配对
             ToolMessage(content="用户拒绝执行这批工具。", tool_call_id=call["id"])
             for call in calls
         ],
     }
 
-
 def route_after_review(state: ApprovalState) -> Literal["tools", "model"]:
     return "tools" if state["approved"] else "model"
-
 
 builder = StateGraph(ApprovalState)
 builder.add_node("model", call_model)
@@ -436,7 +374,7 @@ while result.get("__interrupt__"):
     print(pending["question"])
     print(json.dumps(pending["tool_calls"], ensure_ascii=False, indent=2))
     decision = input("approve / reject（其他输入也拒绝）：").strip().lower()
-    result = app.invoke(Command(resume=decision), config)
+    result = app.invoke(Command(resume=decision), config) # 恢复时沿用原 thread_id
 
 print(result["messages"][-1].content)
 ~~~
@@ -460,9 +398,6 @@ uv add "langchain>=1.5,<1.6"
 ~~~
 
 ~~~python
-from langchain.agents import create_agent
-from langchain.agents.middleware import HumanInTheLoopMiddleware
-
 agent = create_agent(
     model=model,
     tools=tools,
@@ -481,7 +416,7 @@ result = agent.invoke({"messages": [("user", "查询南京天气，再创建一�
 while result.get("__interrupt__"):
     payload = result["__interrupt__"][0].value
     decisions = []
-    for action in payload["action_requests"]:
+    for action in payload["action_requests"]: # decisions 与请求保持相同顺序和数量
         print(json.dumps(action, ensure_ascii=False, indent=2))
         value = input("approve / reject：").strip().lower()
         decisions.append(

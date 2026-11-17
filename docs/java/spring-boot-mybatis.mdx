@@ -9,9 +9,7 @@ author: 'Gin'
 IS_SHOW: true
 ---
 
-本文使用 Java 17、Spring Boot 3.5.x、MyBatis Starter 3.0.x 与 MySQL 8，统一包名 `com.example.notes`。下面的 POM 固定一组示例版本，不代表这些依赖的最新版本；Spring Boot 4 的 starter、Jackson 与相关 API 不能直接混入这套示例。
-
-本文负责 Web 和数据库主线。[鉴权](/blog/spring-security-jwt) 与 [Redis、ID](/blog/spring-redis-identifiers) 分开查阅；全部主题入口在 [学习索引](/blog/java-spring-notes)。
+使用 Java 17、Spring Boot 3.5.x、MyBatis Starter 3.0.x 与 MySQL 8，统一包名 `com.example.notes`。
 
 ## 环境、依赖与目录
 
@@ -20,6 +18,7 @@ IS_SHOW: true
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+    <!-- parent 统一管理 Spring Boot 及常用依赖版本 -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
@@ -88,13 +87,9 @@ src/main/resources/
 所有 Java 代码块各自对应一个文件。分页和一对多是后面的增量示例，先让基础链路工作，再选择加入它们。
 
 ```java title="NotesApplication.java" showLineNumbers
-package com.example.notes;
-
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-
 @SpringBootApplication
 public class NotesApplication {
+    // 启动后扫描当前包及其子包中的组件
     public static void main(String[] args) {
         SpringApplication.run(NotesApplication.class, args);
     }
@@ -104,11 +99,11 @@ public class NotesApplication {
 ```yaml title="application.yml" showLineNumbers
 spring:
   datasource:
-    url: ${DB_URL}
+    url: ${DB_URL} # 连接串与凭据从运行环境读取
     username: ${DB_USER}
     password: ${DB_PASSWORD}
 mybatis:
-  mapper-locations: classpath:mapper/*.xml
+  mapper-locations: classpath:mapper/*.xml # 对应 resources/mapper 下的 SQL 映射
   configuration:
     map-underscore-to-camel-case: true
 ```
@@ -117,7 +112,7 @@ mybatis:
 
 ```sql title="schema.sql：在准备好的练习数据库执行" showLineNumbers
 CREATE TABLE users (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id BIGINT PRIMARY KEY AUTO_INCREMENT, -- 新增时由数据库生成主键
     user_name VARCHAR(80) NOT NULL,
     age INT NOT NULL
 );
@@ -128,14 +123,8 @@ CREATE TABLE users (
 DTO 是数据传输对象，用于约定层与层之间传递的数据形状；DTO 本身不必带校验，校验来自 Jakarta Validation 等组件。此处用 `record` 减少只读 DTO 的样板代码，MyBatis 3.5.x 支持对应的构造器映射。
 
 ```java title="user/UserDto.java" showLineNumbers
-package com.example.notes.user;
-
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-
 public record UserDto(
+        // 请求体由 Controller 的 @Valid 触发这些字段约束
         Long id,
         @NotBlank(message = "姓名不能为空") String userName,
         @NotNull(message = "年龄不能为空")
@@ -162,14 +151,9 @@ public record UserDto(
 Controller 负责 HTTP 输入输出；Service 处理业务规则和事务；Mapper 负责 SQL。用构造器明确依赖，单构造器无需额外 `@Autowired`。
 
 ```java title="user/UserMapper.java" showLineNumbers
-package com.example.notes.user;
-
-import java.util.List;
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
-
 @Mapper
 public interface UserMapper {
+    // @Param 的名称对应 XML 中的 #{id} 等参数占位符
     UserDto selectById(@Param("id") long id);
     List<UserDto> selectByCondition(@Param("name") String name);
     int insertUser(UserDto user);
@@ -179,14 +163,6 @@ public interface UserMapper {
 ```
 
 ```java title="user/UserService.java" showLineNumbers
-package com.example.notes.user;
-
-import com.example.notes.common.BusinessException;
-import java.util.List;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 @Service
 public class UserService {
     private final UserMapper mapper;
@@ -207,7 +183,7 @@ public class UserService {
         return mapper.selectByCondition(name);
     }
 
-    @Transactional
+    @Transactional // 方法内的写入作为一个事务，运行时异常会回滚
     public void create(UserDto user) {
         mapper.insertUser(new UserDto(null, user.userName(), user.age()));
     }
@@ -228,14 +204,6 @@ public class UserService {
 ```
 
 ```java title="user/UserController.java" showLineNumbers
-package com.example.notes.user;
-
-import com.example.notes.common.Result;
-import jakarta.validation.Valid;
-import java.util.List;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.*;
-
 @RestController
 @RequestMapping("/users")
 public class UserController {
@@ -256,7 +224,7 @@ public class UserController {
     }
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.CREATED) // HTTP 返回 201，响应体 code 单独管理
     public Result<Void> create(@Valid @RequestBody UserDto user) {
         service.create(user);
         return Result.success(null);
@@ -288,6 +256,7 @@ public class UserController {
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.notes.user.UserMapper">
     <resultMap id="userMap" type="com.example.notes.user.UserDto">
+        <!-- record 通过构造参数映射，顺序与字段类型一致 -->
         <constructor>
             <idArg column="id" javaType="java.lang.Long"/>
             <arg column="user_name" javaType="java.lang.String"/>
@@ -303,7 +272,7 @@ public class UserController {
         SELECT id, user_name, age FROM users
         <where>
             <if test="name != null and name != ''">
-                user_name = #{name}
+                user_name = #{name} <!-- 绑定参数值，不拼接用户输入 -->
             </if>
         </where>
         ORDER BY id
@@ -330,9 +299,8 @@ public class UserController {
 响应体里的 `code` 不会改变 HTTP 状态。成功包装保留业务码 `200`，新增接口仍通过 `@ResponseStatus` 返回 HTTP 201；失败通过 `ResponseEntity` 或 MVC 的异常处理机制设置对应 HTTP 状态。
 
 ```java title="common/Result.java" showLineNumbers
-package com.example.notes.common;
-
 public record Result<T>(int code, String message, T data) {
+    // data 保留泛型，业务 code 不会自动设置 HTTP 状态
     public static <T> Result<T> success(T data) {
         return new Result<>(200, "操作成功", data);
     }
@@ -344,11 +312,8 @@ public record Result<T>(int code, String message, T data) {
 ```
 
 ```java title="common/BusinessException.java" showLineNumbers
-package com.example.notes.common;
-
-import org.springframework.http.HttpStatus;
-
 public class BusinessException extends RuntimeException {
+    // 随异常携带 HTTP 状态，交给统一处理器生成响应
     private final HttpStatus status;
 
     public BusinessException(HttpStatus status, String message) {
@@ -368,28 +333,13 @@ public class BusinessException extends RuntimeException {
 下面继承 `ResponseEntityExceptionHandler`，保留 MVC 对请求体解析、参数类型等标准异常的状态处理，定制校验失败的响应。它不会拦截 Security 过滤器链中的所有认证异常，鉴权页另有对应处理器。
 
 ```java title="common/GlobalExceptionHandler.java" showLineNumbers
-package com.example.notes.common;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.http.ResponseEntity;
-import org.springframework.validation.FieldError;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.context.request.WebRequest;
-import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
-
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> handleBusiness(BusinessException exception) {
-        return ResponseEntity.status(exception.getStatus())
+        return ResponseEntity.status(exception.getStatus()) // 同步设置 HTTP 状态
                 .body(Result.fail(exception.getStatus().value(), exception.getMessage()));
     }
 
@@ -421,26 +371,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 ```xml title="pom.xml：额外依赖" showLineNumbers
 <dependency>
     <groupId>com.github.pagehelper</groupId>
+    <!-- 使用核心插件，随后显式注册 PageInterceptor -->
     <artifactId>pagehelper</artifactId>
     <version>6.1.0</version>
 </dependency>
 ```
 
 ```java title="config/PageHelperConfig.java" showLineNumbers
-package com.example.notes.config;
-
-import com.github.pagehelper.PageInterceptor;
-import java.util.Properties;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-
 @Configuration
 public class PageHelperConfig {
     @Bean
     public PageInterceptor pageInterceptor() {
         PageInterceptor interceptor = new PageInterceptor();
         Properties properties = new Properties();
-        properties.setProperty("helperDialect", "mysql");
+        properties.setProperty("helperDialect", "mysql"); // 按目标数据库生成分页语法
         properties.setProperty("reasonable", "false");
         interceptor.setProperties(properties);
         return interceptor;
@@ -451,12 +395,8 @@ public class PageHelperConfig {
 MyBatis Starter 会把容器中的 MyBatis `Interceptor` 加入会话工厂。若项目已使用 PageHelper starter 或自行构建 `SqlSessionFactory`，不要重复注册。
 
 ```java title="user/PageResult.java" showLineNumbers
-package com.example.notes.user;
-
-import com.github.pagehelper.PageInfo;
-import java.util.List;
-
 public record PageResult<T>(int pageNum, int pageSize, long total, List<T> list) {
+    // total 为符合条件的总条数，list 只包含本页数据
     public static <T> PageResult<T> from(PageInfo<T> info) {
         return new PageResult<>(info.getPageNum(), info.getPageSize(),
                 info.getTotal(), info.getList());
@@ -465,16 +405,6 @@ public record PageResult<T>(int pageNum, int pageSize, long total, List<T> list)
 ```
 
 ```java title="user/UserPageController.java" showLineNumbers
-package com.example.notes.user;
-
-import com.example.notes.common.BusinessException;
-import com.example.notes.common.Result;
-import com.github.pagehelper.Page;
-import com.github.pagehelper.PageHelper;
-import com.github.pagehelper.PageInfo;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.*;
-
 @RestController
 @RequestMapping("/users")
 public class UserPageController {
@@ -492,6 +422,7 @@ public class UserPageController {
         if (pageNum < 1 || pageSize < 1 || pageSize > 100) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "分页参数不合法");
         }
+        // 只对紧接着的查询分页，退出作用域后清理线程上下文
         try (Page<UserDto> ignored = PageHelper.startPage(pageNum, pageSize)) {
             PageInfo<UserDto> info = new PageInfo<>(mapper.selectByCondition(name));
             return Result.success(PageResult.from(info));
@@ -507,22 +438,14 @@ public class UserPageController {
 一对多关系需要额外的数据结构。以下是基于上面 Mapper 的独立增量：加入订单 DTO 和用户聚合对象、增加 Mapper 方法和 XML，数据库同时提供 `orders` 表。
 
 ```java title="user/OrderDto.java" showLineNumbers
-package com.example.notes.user;
-
-import java.math.BigDecimal;
-
 public record OrderDto(Long id, Long userId, BigDecimal amount) {}
 ```
 
 ```java title="user/UserWithOrders.java" showLineNumbers
-package com.example.notes.user;
-
-import java.util.List;
-
 public class UserWithOrders {
     private Long id;
     private String userName;
-    private List<OrderDto> orders;
+    private List<OrderDto> orders; // collection 将同一用户的订单映射到这里
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -534,14 +457,9 @@ public class UserWithOrders {
 ```
 
 ```java title="user/OrderMapper.java" showLineNumbers
-package com.example.notes.user;
-
-import java.util.List;
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
-
 @Mapper
 public interface OrderMapper {
+    // 父查询把用户 ID 交给子查询，返回该用户的全部订单
     List<OrderDto> selectByUserId(@Param("userId") long userId);
 }
 ```
@@ -552,6 +470,7 @@ public interface OrderMapper {
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.notes.user.OrderMapper">
     <resultMap id="orderMap" type="com.example.notes.user.OrderDto">
+        <!-- 列名与 record 的构造参数按顺序对应 -->
         <constructor>
             <idArg column="id" javaType="java.lang.Long"/>
             <arg column="user_id" javaType="java.lang.Long"/>
@@ -570,6 +489,7 @@ public interface OrderMapper {
 <resultMap id="userWithOrdersMap" type="com.example.notes.user.UserWithOrders">
     <id property="id" column="id"/>
     <result property="userName" column="user_name"/>
+    <!-- 以父行 id 执行子查询；批量加载用户时留意 N+1 次查询 -->
     <collection property="orders" column="id" fetchType="eager"
                 select="com.example.notes.user.OrderMapper.selectByUserId"/>
 </resultMap>

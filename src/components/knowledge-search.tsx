@@ -32,9 +32,8 @@ export function KnowledgeSearch({ documents, compact = false }: { documents: Kno
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button aria-label="搜索笔记" className={compact ? "h-9 px-3 font-meta text-xs" : "h-10 font-meta text-xs"} type="button" variant="outline">
-          <Search size={15} />
+          <Search aria-hidden size={17} />
           <span className={compact ? "hidden lg:inline" : ""}>搜索</span>
-          <span className="hidden rounded border border-[var(--outline)] px-1.5 py-0.5 text-[10px] text-[var(--muted)] lg:inline">Ctrl K</span>
         </Button>
       </DialogTrigger>
 

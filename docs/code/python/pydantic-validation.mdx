@@ -4,19 +4,14 @@ description: '建立运行时数据模型，用 Field 和字段校验器约束�
 language: 'python'
 tags: 'Python,Pydantic,数据校验'
 date: '2026-08-10'
-originTitle: 'Python 学习与速查索引'
-originHref: '/blog/python-review#常用模块'
 ---
 
 ```python title="pydantic_validation.py" showLineNumbers
-from pydantic import BaseModel, EmailStr, Field, SecretStr, field_validator
-
-
 class User(BaseModel):
     username: str = Field(min_length=2, max_length=20, description="用户名")
     email: EmailStr
     age: int = Field(ge=0, le=150)
-    password: SecretStr = Field(min_length=8)
+    password: SecretStr = Field(min_length=8) # 展示时隐藏原值，不负责密码哈希
 
     @field_validator("username")
     @classmethod
@@ -25,11 +20,10 @@ class User(BaseModel):
             raise ValueError("用户名不能包含空格")
         return value
 
-
 user = User.model_validate({
     "username": "gin",
     "email": "gin@example.com",
-    "age": "25",
+    "age": "25", # 默认模式允许把数字字符串解析为 int
     "password": "example-password",
 })
 print(user.age)

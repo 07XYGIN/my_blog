@@ -18,9 +18,8 @@ IS_SHOW: TRUE
 ### 日志配置
 
 ```python title="log.py" showLineNumbers
-import logging
-
 logging.basicConfig(
+    # 把时间、模块与级别一起输出，方便定位请求失败的位置
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
@@ -39,11 +38,6 @@ uv add requests beautifulsoup4
 从练习站的公开接口获取数据，目标站点：`https://spa1.scrape.center/`。
 
 ```python title="api_spider.py" showLineNumbers
-import logging
-import time
-
-import requests
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -52,7 +46,6 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://spa1.scrape.center/api/movie/"
 PAGE_SIZE = 10
-
 
 def api_spider():
     offset = 0
@@ -63,7 +56,7 @@ def api_spider():
                 params={"limit": PAGE_SIZE, "offset": offset},
                 timeout=10,  # 一定要设置超时，否则网络异常时会一直卡住
             )
-            response.raise_for_status()
+            response.raise_for_status() # HTTP 错误先抛出，不把错误页当作正常 JSON
             data: dict = response.json()
 
             results = data.get("results", [])
@@ -84,11 +77,10 @@ def api_spider():
                 time.sleep(1)
 
             logger.info("已抓取 offset=%s 的数据", offset)
-            offset += PAGE_SIZE
+            offset += PAGE_SIZE # 按接口的 offset/limit 约定翻页
             if offset >= data.get("count", 0):
                 break
             time.sleep(1)  # 控制频率，避免对目标站造成压力
-
 
 if __name__ == "__main__":
     api_spider()
@@ -99,19 +91,15 @@ if __name__ == "__main__":
 使用 `BeautifulSoup` 分析 DOM 结构。演示站点需要先登录，登录成功后带上 `cookies` 再请求列表页。
 
 ```python title="ssr_spider.py" showLineNumbers
-import requests
-from bs4 import BeautifulSoup
-
 LOGIN_URL = "https://login2.scrape.center/login"
 INDEX_URL = "https://login2.scrape.center/"
-
 
 def ssr_spider() -> list[dict]:
     body = {"username": "admin", "password": "admin"}
     result = requests.post(LOGIN_URL, data=body, allow_redirects=False, timeout=10)  # 拿到原始响应
 
     result.raise_for_status()
-    cookies = result.cookies
+    cookies = result.cookies # 后续请求复用登录响应中的会话 Cookie
     data = requests.get(INDEX_URL, cookies=cookies, timeout=10)  # 拿到 html
     data.raise_for_status()
     soup = BeautifulSoup(data.text, "html.parser")
@@ -142,7 +130,6 @@ def ssr_spider() -> list[dict]:
             "duration": duration,
         })
     return movies
-
 
 if __name__ == "__main__":
     print(ssr_spider())
@@ -204,15 +191,13 @@ uv run scrapy startproject water_tenders .
     ```
 
     ```python title="water_tenders/spiders/toscrape.py" showLineNumbers
-    import scrapy
-
-
     class ToscrapeSpider(scrapy.Spider):
         name = "toscrape"  # spider name
         allowed_domains = ["quotes.toscrape.com"]  # 允许爬取的域名
         start_urls = ["https://quotes.toscrape.com/"]  # 从哪些 URL 开始抓取
 
-        def parse(self, response):
+    def parse(self, response):
+        # 回调处理本次下载的页面，继续 yield 数据或后续请求
             pass
     ```
 
@@ -225,8 +210,6 @@ uv run scrapy startproject water_tenders .
     # spider 可以把提取到的数据封装成 Item 对象（也可以是字典、dataclass 等）后 yield 出去，
     # 这些对象本质上就是一组键值对。
     # 可以定义多个 Item
-    from dataclasses import dataclass
-
 
     @dataclass
     class QuoteItem:
@@ -239,12 +222,7 @@ uv run scrapy startproject water_tenders .
 
   <Step title="分析 DOM 结构 / 从接口抓取数据">
 
-    ```python title="water_tenders/spiders/toscrape.py" showLineNumbers {17,22}
-    import scrapy
-
-    from water_tenders.items import QuoteItem
-
-
+    ```python title="water_tenders/spiders/toscrape.py" showLineNumbers
     class ToscrapeSpider(scrapy.Spider):
         name = "toscrape"
         allowed_domains = ["quotes.toscrape.com"]
@@ -270,7 +248,7 @@ uv run scrapy startproject water_tenders .
 
   <Step title="在 pipelines 处理数据">
 
-    ```python title="water_tenders/pipelines.py" showLineNumbers {3,11,19}
+    ```python title="water_tenders/pipelines.py" showLineNumbers
     # 可以有多个 pipeline
     class WaterTendersPipeline:
         def open_spider(self, spider):
@@ -336,7 +314,7 @@ DOWNLOADER_MIDDLEWARES = {
 
 真正的代理中间件只负责设置 `request.meta["proxy"]`，然后返回 `None`，让请求继续走后面的中间件和下载器：
 
-```python title="water_tenders/middlewares.py" showLineNumbers {6,7}
+```python title="water_tenders/middlewares.py" showLineNumbers
 class ProxyMiddleware:
     PROXY = "http://127.0.0.1:7890"  # 示例代理地址，请替换成自己的
 
@@ -348,10 +326,7 @@ class ProxyMiddleware:
 
 <Details title="调试用：直接返回 Response 的中间件">
 
-```python title="water_tenders/middlewares.py" showLineNumbers {7}
-from scrapy.http import HtmlResponse
-
-
+```python title="water_tenders/middlewares.py" showLineNumbers
 class MockResponseMiddleware:
     def process_request(self, request, spider):
         # 直接返回 Response 会跳过后续下载器，常用于调试或本地 mock

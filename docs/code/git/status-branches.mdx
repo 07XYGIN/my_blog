@@ -11,7 +11,7 @@ originHref: 'https://git-scm.com/docs/git-status'
 ```bash title="inspect-working-tree.sh"
 git status --short
 git diff
-git diff --cached
+git diff --cached # 查看即将进入下一次提交的已暂存改动
 git branch --show-current
 git log --oneline -5
 ```
@@ -40,7 +40,7 @@ git log --oneline -5
 明确当前提交就是起点，且工作区状态已经妥善处理后，创建新分支：
 
 ```bash title="new-branch.sh"
-git switch -c topic/readme
+git switch -c topic/readme # 从当前位置创建并切换到新分支
 git branch
 ```
 
@@ -55,7 +55,7 @@ git branch
 确认 `README.md` 是这次准备提交的文件后，按文件选择暂存范围，再检查暂存区：
 
 ```bash title="commit-selected-file.sh"
-git add README.md
+git add README.md # 只提交选定文件，其他改动继续留在工作区
 git diff --cached
 git commit -m "docs: update readme"
 ```
@@ -65,7 +65,7 @@ git commit -m "docs: update readme"
 如果仓库配置了名为 `origin` 的远程，并且已经配置好访问权限，可首次推送该分支：
 
 ```bash title="publish-branch.sh"
-git push -u origin topic/readme
+git push -u origin topic/readme # 首次推送并建立上游分支关联
 ```
 
 `-u` 建立上游跟踪关系，后续一般可以使用 `git push`。推送会修改远程仓库状态，先核对 `git remote -v` 和分支名。

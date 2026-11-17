@@ -157,7 +157,7 @@ CREATE TABLE employees (
     id BIGINT PRIMARY KEY,
     department_id BIGINT NOT NULL,
     name VARCHAR(50) NOT NULL,
-    salary DECIMAL(10, 2) NOT NULL CHECK (salary >= 0),
+    salary DECIMAL(10, 2) NOT NULL CHECK (salary >= 0), -- 金额保留两位小数且不能为负
     CONSTRAINT fk_employees_department
         FOREIGN KEY (department_id) REFERENCES departments(id)
 );
@@ -193,7 +193,7 @@ RIGHT JOIN departments d ON e.department_id = d.id;
 ```sql
 SELECT *
 FROM departments d, employees e
-WHERE d.id = e.department_id;
+WHERE d.id = e.department_id; -- 隐式内连接，缺少关联条件会产生笛卡尔积
 ```
 
 ---
@@ -212,7 +212,7 @@ CREATE INDEX idx_users_name_created_at ON users(username, created_at);
 示例：索引 `(username, created_at)` 可以优化：
 
 ```sql
-WHERE username = 'alice'
+WHERE username = 'alice' -- 使用联合索引的最左列
 
 WHERE username = 'alice'
   AND created_at >= '2024-01-01'
@@ -221,7 +221,7 @@ WHERE username = 'alice'
 但通常不能很好优化只按第二列过滤的查询：
 
 ```sql
-WHERE created_at >= '2024-01-01'
+WHERE created_at >= '2024-01-01' -- 未包含最左列，需通过 EXPLAIN 确认访问方式
 ```
 
 ---
@@ -247,6 +247,7 @@ CREATE TABLE accounts (
 INSERT INTO accounts (id, balance) VALUES (1, 500.00), (2, 100.00);
 
 BEGIN;
+-- 两次扣款和入账处于同一事务；任一步失败应由调用方执行 ROLLBACK
 UPDATE accounts SET balance = balance - 100.00 WHERE id = 1;
 UPDATE accounts SET balance = balance + 100.00 WHERE id = 2;
 COMMIT;

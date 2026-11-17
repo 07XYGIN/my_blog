@@ -11,7 +11,7 @@ IS_SHOW: TRUE
 
 手写过一次工具调用循环之后，LangChain 的抽象就容易理解了：它把消息格式、模型适配、工具定义和执行循环整理成可组合的接口。
 
-本文不重复推导 Tool Calling 的消息协议，原理见 [原生 SDK、记忆与 MCP](/blog/agent_01)。这里重点回答：换成框架之后，哪些代码可以省掉，哪些责任依然属于应用？
+Tool Calling 的消息协议见 [原生 SDK、记忆与 MCP](/blog/agent_01)。
 
 ## 环境与依赖
 
@@ -50,15 +50,7 @@ uv add "langchain>=1,<2" "langchain-openai>=1,<2" "langgraph>=1,<2"
 
 ### 完整脚本：调用一次模型
 
-下面的 messages_demo.py 可以独立运行。它包含所有导入和环境配置，不依赖业务项目里的客户端工厂。
-
 ~~~python title="messages_demo.py" showLineNumbers
-import os
-
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
-
-
 def create_model() -> ChatOpenAI:
     return ChatOpenAI(
         model=os.environ["OPENAI_MODEL"],
@@ -66,7 +58,6 @@ def create_model() -> ChatOpenAI:
         base_url=os.getenv("OPENAI_BASE_URL"),
         temperature=0,
     )
-
 
 def main() -> None:
     model = create_model()
@@ -76,11 +67,10 @@ def main() -> None:
         AIMessage(content="可以先从消息、模型和工具三个概念开始。"),
         HumanMessage(content="刚才提到的三个概念是什么？"),
     ]
-    response = model.invoke(messages)
+    response = model.invoke(messages) # 本轮上下文由 messages 显式传入
     print(response.content)
     if response.usage_metadata:
         print("模型报告的 token 用量：", response.usage_metadata)
-
 
 if __name__ == "__main__":
     main()
@@ -101,16 +91,6 @@ schema 能描述参数，却不能证明业务输入合理。空城市、权限�
 下面的 agent_demo.py 是另一个独立脚本。天气为模拟数据，不访问天气接口。它展示了工具定义、自动执行循环和同一会话的第二轮提问。
 
 ~~~python title="agent_demo.py" showLineNumbers
-import json
-import os
-
-from langchain.agents import create_agent
-from langchain.tools import tool
-from langchain_core.messages import HumanMessage
-from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.memory import InMemorySaver
-
-
 def create_model() -> ChatOpenAI:
     return ChatOpenAI(
         model=os.environ["OPENAI_MODEL"],
@@ -118,7 +98,6 @@ def create_model() -> ChatOpenAI:
         base_url=os.getenv("OPENAI_BASE_URL"),
         temperature=0,
     )
-
 
 @tool
 def get_weather(city: str) -> str:
@@ -130,13 +109,12 @@ def get_weather(city: str) -> str:
         ensure_ascii=False,
     )
 
-
 def main() -> None:
     agent = create_agent(
         model=create_model(),
         tools=[get_weather],
         system_prompt="你是中文助手。需要天气时调用工具，注明数据为模拟数据。",
-        checkpointer=InMemorySaver(),
+        checkpointer=InMemorySaver(), # 同一 thread_id 的多轮调用复用历史
     )
     config = {
         "configurable": {"thread_id": "demo-session"},
@@ -152,7 +130,6 @@ def main() -> None:
         config=config,
     )
     print(second["messages"][-1].content)
-
 
 if __name__ == "__main__":
     main()
@@ -175,12 +152,9 @@ bind_tools 只把工具定义绑定到模型请求，不会替你执行工具。
 下面是放入 agent_demo.py 的局部实现，复用已经定义的 create_model 和 get_weather；不依赖该脚本里的 main。演示时在 main 中调用 run_manual 即可。
 
 ~~~python
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
-
-
 def run_manual(question: str):
     tools_map = {get_weather.name: get_weather}
-    bound_model = create_model().bind_tools([get_weather])
+    bound_model = create_model().bind_tools([get_weather]) # 绑定 schema，执行仍由循环负责
     messages = [
         SystemMessage(content="需要天气时使用工具，注明模拟数据。"),
         HumanMessage(content=question),
@@ -198,7 +172,7 @@ def run_manual(question: str):
                 result = f"工具执行失败：{error}"
             messages.append(ToolMessage(
                 content=str(result),
-                tool_call_id=call["id"],
+                tool_call_id=call["id"], # 与模型请求中的调用 ID 一一对应
             ))
     raise RuntimeError("达到工具调用轮数上限，任务未完成")
 ~~~
@@ -214,15 +188,11 @@ def run_manual(question: str):
 下面的局部片段放在 messages_demo.py 中，复用 create_model；需要在 main 中调用，或在交互环境中执行。
 
 ~~~python
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
-
-
 prompt = ChatPromptTemplate.from_messages([
     ("system", "用一句中文回答，不确定时明确说明。"),
     ("human", "{question}"),
 ])
-chain = prompt | create_model() | StrOutputParser()
+chain = prompt | create_model() | StrOutputParser() # 输入字典 → 消息 → 模型回复 → 文本
 text = chain.invoke({"question": "Runnable 在这里解决什么问题？"})
 print(text)
 ~~~
@@ -241,7 +211,7 @@ prompt 把输入字典变成消息，model 把消息变成 AIMessage，parser �
 for chunk, metadata in agent.stream(
     {"messages": [HumanMessage(content="用两句话解释工具调用")]},
     config=config,
-    stream_mode="messages",
+    stream_mode="messages", # 返回消息增量和来源节点信息
 ):
     if isinstance(chunk.content, str):
         print(chunk.content, end="", flush=True)
@@ -261,13 +231,9 @@ usage_metadata 由适配器和服务商提供。chunk 数量不能替代 token �
 下面的局部片段放在 messages_demo.py 中，复用 create_model。模型服务必须支持工具调用；这里明确选择 function_calling 方式，不假定兼容服务支持原生 json_schema 模式。
 
 ~~~python
-from pydantic import BaseModel, Field
-
-
-class CityBrief(BaseModel):
+class CityBrief(BaseModel): # 约束模型返回字段，并在解析后校验
     city: str = Field(description="示例数据中的城市名称")
     summary: str = Field(description="一句中文摘要，明确说明是模拟数据")
-
 
 structured_model = create_model().with_structured_output(
     CityBrief,
@@ -290,14 +256,10 @@ print(brief.summary)
 
 ~~~python
 # 局部替换示例：需已启动 Ollama，并准备支持所需能力的模型。
-from langchain_ollama import ChatOllama
-
 
 model = ChatOllama(model=os.environ["OLLAMA_MODEL"])
 ~~~
 
 消息和 Runnable 的调用形式通常可以保留，但工具调用、结构化输出、内容块与用量字段仍取决于模型及适配器。统一接口减少了接入差异，不会抹平服务能力差异。
-
-本文示例不包含真实模型运行结果。检查时应先核对导入、参数和消息配对，再用实际服务分别验证文本、工具、会话与流式能力。扩展到人工确认和恢复执行时，再进入 LangGraph 的状态与检查点层。
 
 参考：[LangChain Agent](https://docs.langchain.com/oss/python/langchain/agents)、[工具定义](https://docs.langchain.com/oss/python/langchain/tools)、[消息](https://docs.langchain.com/oss/python/langchain/messages)、[短期记忆](https://docs.langchain.com/oss/python/langchain/short-term-memory)、[流式输出](https://docs.langchain.com/oss/python/langchain/streaming)。

@@ -10,7 +10,7 @@ originHref: 'https://git-scm.com/docs/git-stash'
 
 ```bash title="save-local-work.sh"
 git status --short
-git stash push -u -m "WIP: pause current task"
+git stash push -u -m "WIP: pause current task" # -u 同时暂存未跟踪文件
 git stash list
 git status --short
 ```
@@ -30,7 +30,7 @@ git status --short
 ```bash title="inspect-and-apply.sh"
 git stash show --stat 'stash@{0}'
 git stash show -p --include-untracked 'stash@{0}'
-git stash apply 'stash@{0}'
+git stash apply 'stash@{0}' # 应用后保留 stash，检查无误再删除
 ```
 
 `apply` 恢复改动但保留 stash 条目，方便检查结果。默认不保证恢复原先的暂存状态；如果确实需要恢复暂存区划分，可以考虑 `git stash apply --index 'stash@{0}'`，但它同样可能因当前状态而失败。
@@ -38,7 +38,7 @@ git stash apply 'stash@{0}'
 恢复正确并完成必要检查后，可以删除已经不再需要的条目：
 
 ```bash title="drop-verified-stash.sh"
-git stash drop 'stash@{0}'
+git stash drop 'stash@{0}' # 仅删除这一条已核对的暂存记录
 ```
 
 删除前再次确认 `git stash list`，因为新建或删除条目会改变编号。`git stash pop 'stash@{1}'` 相当于尝试恢复指定条目，并在成功时删除该条目；编号必须以当前列表为准。

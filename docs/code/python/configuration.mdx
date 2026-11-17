@@ -4,18 +4,11 @@ description: '用 dotenv 加载本地环境变量，明确字符串转换，并�
 language: 'python'
 tags: 'Python,配置,env,YAML'
 date: '2026-08-10'
-originTitle: 'Python 学习与速查索引'
-originHref: '/blog/python-review#常用模块'
 ---
 
 ```python title="config.py" showLineNumbers
-import os
-from pathlib import Path
-
-from dotenv import load_dotenv
-
 CONFIG_DIR = Path(__file__).resolve().parent
-load_dotenv(CONFIG_DIR / ".env")
+load_dotenv(CONFIG_DIR / ".env") # 按脚本目录定位，默认不覆盖已有环境变量
 
 db_host = os.getenv("DB_HOST", "127.0.0.1")
 db_port = int(os.getenv("DB_PORT", "3306"))
@@ -45,30 +38,25 @@ DB_PORT=3306
 
 ```yaml title="keywords.yaml" showLineNumbers
 keywords:
+  # YAML 列表，读取后对应 Python list
   - 解脱者
 name:
   - 塞拉斯
 ```
 
 ```python title="yaml_config.py" showLineNumbers
-from pathlib import Path
-
-import yaml
-
 CONFIG_DIR = Path(__file__).resolve().parent
-
 
 def get_yaml(filename: str = "keywords.yaml") -> dict[str, object]:
     with (CONFIG_DIR / filename).open("r", encoding="utf-8") as file:
-        data = yaml.safe_load(file)
-    if data is None:
+        data = yaml.safe_load(file) # 只解析基础数据，不构造任意 Python 对象
+    if data is None: # 空 YAML 文件返回 None
         return {}
     if not isinstance(data, dict):
         raise ValueError("配置文件的顶层必须是映射")
     if not all(isinstance(key, str) for key in data):
         raise ValueError("配置项名称必须是字符串")
     return data
-
 
 print(get_yaml())
 ```

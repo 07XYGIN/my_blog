@@ -1,111 +1,110 @@
-import { ArrowUpRight, Bot, Code2, GitBranch, Mail, NotebookTabs, Server } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Mail } from "lucide-react";
+import { GitHubIcon } from "@/components/github-icon";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { ProjectList } from "@/components/project-list";
 import { getPosts } from "@/lib/posts";
-import { getProjects, type Project, type ProjectStatus } from "@/lib/projects";
-
-const statusLabel: Record<ProjectStatus, string> = {
-  ACTIVE: "进行中",
-  SHIPPED: "已交付",
-  ARCHIVED: "已归档",
-};
+import { getProjects } from "@/lib/projects";
 
 const directions = [
   {
     title: "Web 工程",
-    icon: <Code2 size={19} />,
     description: "从组件到页面，构建博客、管理端和客户端应用。",
-    items: ["React", "Next.js", "Vue", "TypeScript", "Tailwind CSS"],
+    stack: "React / Next.js / Vue / TypeScript / Tailwind CSS",
   },
   {
     title: "后端与数据",
-    icon: <Server size={19} />,
     description: "接口设计、数据建模、持久化与缓存。",
-    items: ["Python", "FastAPI", "Java", "Spring Boot", "PostgreSQL", "MySQL", "Redis", "SQLAlchemy"],
+    stack: "Python / FastAPI / Java / Spring Boot / PostgreSQL / Redis",
   },
   {
     title: "AI 应用与 Agent",
-    icon: <Bot size={19} />,
     description: "围绕长期记忆、工具调用与流式响应。",
-    items: ["LangGraph", "LangChain", "pgvector"],
+    stack: "LangGraph / LangChain / pgvector",
   },
 ];
 
 export default async function AboutPage() {
   const [posts, projects] = await Promise.all([getPosts(), getProjects()]);
-  const featured = projects.filter((project) => project.title === "Aura" || project.title === "Templates");
-
+  const featured = projects.filter(
+    (project) => project.title === "Aura" || project.title === "Templates",
+  );
   return (
-    <main className="container section-pad">
-      <header className="relative overflow-hidden border-b border-[var(--outline)] pb-14 pt-8 md:pb-20 md:pt-16">
-        <div aria-hidden className="about-grid" />
-        <p className="eyebrow">About / Gin</p>
-        <h1 className="relative mt-4 max-w-3xl text-[clamp(2.75rem,8vw,5.5rem)] font-semibold leading-[0.98] tracking-[-0.06em]">
-          关于<span className="text-[var(--primary)]">我</span>
-        </h1>
-        <p className="relative mt-6 max-w-2xl text-base leading-8 text-[var(--muted)]">
-          我是 Gin，前端开发。主要写前端工程实践和踩坑，也会记录 Python、Java、AI Agent 的学习笔记。
-        </p>
-        <div className="relative mt-8 flex flex-wrap items-center gap-3">
-          <Button asChild><a href="https://github.com/07XYGIN" rel="noreferrer" target="_blank"><Code2 size={17} />GitHub</a></Button>
-          <a className="focus-ring inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--muted)] transition-colors hover:bg-[var(--surface-container)] hover:text-[var(--primary)]" href="mailto:xygin0708@163.com"><Mail size={16} />xygin0708@163.com</a>
+    <main className="container editorial-page about-page" id="main-content">
+      <header className="page-heading about-intro">
+        <div>
+          <p className="section-kicker">About / 开发者与记录者</p>
+          <h1>
+            你好，我是 Gin<span className="accent-dot">.</span>
+          </h1>
+          <p>
+            前端开发。主要写前端工程实践和踩坑，也会记录 Python、Java、AI Agent
+            的学习笔记。
+          </p>
+          <div className="about-contact">
+            <a
+              className="text-link focus-ring"
+              href="https://github.com/07XYGIN"
+              rel="noreferrer"
+              target="_blank"
+            >
+              <GitHubIcon size={16} />
+              GitHub
+              <ArrowUpRight size={14} />
+            </a>
+            <a className="text-link focus-ring" href="mailto:xygin0708@163.com">
+              <Mail size={16} />
+              xygin0708@163.com
+            </a>
+          </div>
         </div>
-        <div className="relative mt-8 flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-[var(--outline)] pt-6 text-sm text-[var(--muted)]">
-          <span className="inline-flex items-center gap-2"><NotebookTabs size={16} className="text-[var(--primary)]" /><span className="font-semibold text-[var(--text)]">{posts.length}</span> 篇笔记</span>
-          <span className="inline-flex items-center gap-2"><GitBranch size={16} className="text-[var(--primary)]" /><span className="font-semibold text-[var(--text)]">{projects.length}</span> 个项目</span>
+        <div className="about-identity">
+          <div aria-hidden className="author-mark">
+            G<span>.</span>
+          </div>
+          <span>Frontend / Backend / Agent</span>
         </div>
       </header>
-
-      <section className="mt-16 md:mt-24">
-        <div className="grid gap-8 lg:grid-cols-[280px_1fr]">
-          <div>
-            <p className="eyebrow">Focus</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight">技术方向</h2>
-          </div>
-          <div className="grid gap-px overflow-hidden rounded-2xl border border-[var(--outline)] bg-[var(--outline)] sm:grid-cols-3">
-            {directions.map((group) => (
-              <div className="bg-[var(--surface)] p-6 md:p-7" key={group.title}>
-                <div className="flex items-center gap-3 text-[var(--primary)]">{group.icon}<h3 className="text-lg font-semibold text-[var(--text)]">{group.title}</h3></div>
-                <p className="mt-4 text-sm leading-6 text-[var(--muted)]">{group.description}</p>
-                <div className="mt-5 flex flex-wrap gap-2">{group.items.map((item) => <span className="tag" key={item}>{item}</span>)}</div>
-              </div>
-            ))}
-          </div>
+      <section className="about-section">
+        <div>
+          <p className="section-kicker">Focus</p>
+          <h2>关注的方向</h2>
+        </div>
+        <div className="focus-list">
+          {directions.map((direction) => (
+            <section key={direction.title}>
+              <h3>{direction.title}</h3>
+              <p>{direction.description}</p>
+              <span>{direction.stack}</span>
+            </section>
+          ))}
         </div>
       </section>
-
-      <section className="mt-20 md:mt-28">
-        <div className="flex items-end justify-between border-b border-[var(--outline)] pb-6">
-          <div>
-            <p className="eyebrow">Selected work</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight">项目</h2>
-          </div>
-          <Link className="focus-ring inline-flex items-center gap-1.5 text-sm text-[var(--muted)] transition-colors hover:text-[var(--primary)]" href="/projects">查看全部<ArrowUpRight size={15} /></Link>
+      <section className="about-section">
+        <div>
+          <p className="section-kicker">Writing</p>
+          <h2>把过程留下来</h2>
         </div>
-        <div className="mt-8 grid gap-5 lg:grid-cols-2">
-          {featured.map((project) => <ProjectCard key={project.title} project={project} />)}
+        <div className="about-writing">
+          <p>
+            这里收录了 {posts.length} 篇技术笔记和 {projects.length}{" "}
+            个项目。笔记围绕具体问题展开，项目记录实现过程中的选择、问题和收获。
+          </p>
+          <Link className="text-link focus-ring" href="/blog">
+            阅读笔记
+            <ArrowRight size={16} />
+          </Link>
         </div>
+      </section>
+      <section className="about-projects">
+        <div className="section-heading">
+          <h2>精选项目</h2>
+          <Link className="text-link focus-ring" href="/projects">
+            全部项目
+            <ArrowRight size={15} />
+          </Link>
+        </div>
+        <ProjectList projects={featured} />
       </section>
     </main>
-  );
-}
-
-function ProjectCard({ project }: { project: Project }) {
-  const statusVariant = project.status === "ACTIVE" ? "teal" : project.status === "SHIPPED" ? "default" : "outline";
-  return (
-    <a className="focus-ring group block h-full rounded-2xl" href={project.links.source} rel="noreferrer" target="_blank">
-      <Card className="relative h-full justify-between overflow-hidden transition duration-300 group-hover:-translate-y-1 group-hover:border-[var(--primary)]">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-4">
-              <span className={`tag ${statusVariant === "teal" ? "teal" : ""}`}>{statusLabel[project.status]}</span>
-              <ArrowUpRight className="text-[var(--muted)] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[var(--primary)]" size={19} />
-            </div>
-            <CardTitle className="mt-3 text-3xl"><h3>{project.title}</h3></CardTitle>
-            <CardDescription className="text-base leading-7">{project.summary}</CardDescription>
-          </CardHeader>
-          <CardFooter className="flex-wrap gap-2">{project.stack.map((tag) => <span className="tag" key={tag}>{tag}</span>)}</CardFooter>
-      </Card>
-    </a>
   );
 }

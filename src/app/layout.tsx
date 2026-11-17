@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "katex/dist/katex.min.css";
 import "./globals.css";
+import "./editorial.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SiteHeader, SiteFooter } from "@/components/site-shell";
 import { getKnowledgeDocuments } from "@/lib/search";
@@ -15,10 +16,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
   return (
     <html data-scroll-behavior="smooth" lang="zh-CN" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: `(function(){var t;try{t=localStorage.getItem("gin-theme")}catch(e){}var dark=t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",dark)})()` }} /></head>
       <body>
         <ThemeProvider>
           <SiteHeader searchDocuments={searchDocuments} />
-          <div className="min-h-screen pt-16">{children}</div>
+          <div className="site-content" id="page-content" tabIndex={-1}>{children}</div>
           <SiteFooter />
         </ThemeProvider>
       </body>

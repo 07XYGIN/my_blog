@@ -4,15 +4,13 @@ description: '初始化项目、固定 Python 版本、同步依赖，并通过 
 language: 'powershell'
 tags: 'Python,uv,环境管理'
 date: '2026-08-10'
-originTitle: 'Python 学习与速查索引'
-originHref: '/blog/python-review#环境与项目管理-uv'
 ---
 
 ```powershell title="创建项目并运行 Python" showLineNumbers
 uv init my-project --python 3.11
 Set-Location my-project
 uv python pin 3.11
-uv sync
+uv sync # 按项目依赖与锁文件同步虚拟环境
 uv run python -c "import sys; print(sys.version); print(sys.executable)"
 ```
 

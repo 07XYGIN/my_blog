@@ -30,6 +30,7 @@ node --version
 pnpm --version
 pnpm exec next --version
 node -e "console.log(Math.round(require('node:v8').getHeapStatistics().heap_size_limit / 1024 / 1024) + ' MiB')"
+# 固定锁文件，排查时避免依赖版本跟着变化
 pnpm install --frozen-lockfile
 pnpm build
 ```
@@ -43,13 +44,13 @@ pnpm build
 下面的 4096 是 MiB，按实际机器余量选择。POSIX shell 可只给单次命令设置环境变量：
 
 ```bash
-NODE_OPTIONS=--max-old-space-size=4096 pnpm build
+NODE_OPTIONS=--max-old-space-size=4096 pnpm build # 为当前命令设置 4 GiB 老生代堆上限
 ```
 
 PowerShell 使用环境变量，并在结束后恢复原值：
 
 ```powershell
-$previousNodeOptions = $env:NODE_OPTIONS
+$previousNodeOptions = $env:NODE_OPTIONS # 记录原值，finally 恢复，避免影响后续命令
 try {
     $env:NODE_OPTIONS = "$previousNodeOptions --max-old-space-size=4096".Trim()
     pnpm build
@@ -65,13 +66,13 @@ try {
 先确认命令支持的选项：
 
 ```bash
-pnpm exec next build --help
+pnpm exec next build --help # 以当前安装版本的帮助信息确认可用诊断参数
 ```
 
 Next.js 的内存指南提供 `--experimental-debug-memory-usage`，会输出堆和 GC 信息，接近上限时采集快照；它与 Webpack build worker 存在兼容限制，使用前检查当前版本文档。另一种采样方式是让 Node 记录主构建进程的堆 profile：
 
 ```bash
-node --heap-prof node_modules/next/dist/bin/next build
+node --heap-prof node_modules/next/dist/bin/next build # 退出时生成 .heapprofile 文件
 ```
 
 构建退出后可将生成的 `.heapprofile` 载入 Chrome DevTools 的 Memory 面板。子进程的内存未必包含在主进程 profile 中；主进程没有异常增长时，继续检查 worker 和系统层监控。快照与 profile 可能包含业务数据，分享前先检查内容。
@@ -96,8 +97,6 @@ node --heap-prof node_modules/next/dist/bin/next build
 | --- | --- | --- | --- | --- | --- |
 | 基线 | 实测填写 | `pnpm build` | 实测填写 | 实测填写 | 实测填写 |
 | 单项改动 | 与基线一致 | `pnpm build` | 实测填写 | 实测填写 | 实测填写 |
-
-本文不提供未经测量的优化比例。复现消失、构建产物正常，并且峰值留有可解释的余量后，才有依据保留这项修改。
 
 ## 参考
 

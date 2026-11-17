@@ -14,29 +14,40 @@ export const metadata: Metadata = {
 
 export default async function SnippetsPage() {
   const snippets = await getCodeSnippets();
-  const items = await Promise.all(snippets.map(async (snippet) => ({
-    slug: snippet.slug,
-    title: snippet.title,
-    description: snippet.description,
-    category: snippet.category,
-    language: snippet.language,
-    tags: snippet.tags,
-    date: snippet.date,
-    originTitle: snippet.originTitle,
-    originHref: snippet.originHref,
-    searchText: stripMdxForSearch(snippet.source),
-    preview: await MDXRemote({
-      source: snippet.source,
-      options: { mdxOptions: { ...mdxOptions, remarkPlugins: [remarkSnippetPreview, ...(mdxOptions.remarkPlugins ?? [])] } },
-      components: getMdxComponents(new Map()),
-    }),
-  })));
+  const items = await Promise.all(
+    snippets.map(async (snippet) => ({
+      slug: snippet.slug,
+      title: snippet.title,
+      description: snippet.description,
+      category: snippet.category,
+      language: snippet.language,
+      tags: snippet.tags,
+      date: snippet.date,
+      originTitle: snippet.originTitle,
+      originHref: snippet.originHref,
+      searchText: stripMdxForSearch(snippet.source),
+      preview: await MDXRemote({
+        source: snippet.source,
+        options: {
+          mdxOptions: {
+            ...mdxOptions,
+            remarkPlugins: [
+              remarkSnippetPreview,
+              ...(mdxOptions.remarkPlugins ?? []),
+            ],
+          },
+        },
+        components: getMdxComponents(new Map()),
+      }),
+    })),
+  );
 
   return (
-    <main className="container section-pad">
-      <header className="border-b border-[var(--outline)] pb-7">
-        <p className="eyebrow">Snippets</p>
-        <h1 className="mt-3 text-4xl font-semibold leading-tight">速查</h1>
+    <main className="container editorial-page" id="main-content">
+      <header className="page-heading">
+        <p className="section-kicker">Reference / 随用随查</p>
+        <h1>速查</h1>
+        <p>常用命令、代码和配置，按要解决的任务整理。</p>
       </header>
       <SnippetExplorer snippets={items} />
     </main>

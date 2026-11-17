@@ -4,26 +4,19 @@ description: '用不定参数转发调用，通过 wraps 保留函数信息，�
 language: 'python'
 tags: 'Python,装饰器,args,kwargs'
 date: '2026-08-10'
-originTitle: 'Python 学习与速查索引'
-originHref: '/blog/python-review#常用装饰器'
 ---
 
 ```python title="decorator_demo.py" showLineNumbers
-from functools import wraps
-
-
 def log_calls(func):
-    @wraps(func)
+    @wraps(func) # 保留原函数名称、文档和 __wrapped__ 引用
     def wrapper(*args, **kwargs):
         print(f"调用 {func.__name__}: args={args}, kwargs={kwargs}")
-        return func(*args, **kwargs)
+        return func(*args, **kwargs) # 转发参数并保留原函数返回值
     return wrapper
-
 
 @log_calls
 def create_user(name: str, age: int, city: str = "Beijing", vip: bool = False) -> dict:
     return {"name": name, "age": age, "city": city, "vip": vip}
-
 
 print(create_user("gin", 18, city="Shanghai", vip=True))
 print(create_user.__name__)
@@ -37,13 +30,12 @@ print(create_user.__name__)
 def concat(*strings: str) -> str:
     return "".join(strings)
 
-
 def request_summary(url: str, **options) -> str:
+    # **options 收集关键字参数，get 为未提供的配置设置默认值
     timeout = options.get("timeout", 10)
     method = options.get("method", "GET")
     headers = options.get("headers", {})
     return f"url={url}, timeout={timeout}, method={method}, headers={headers}"
-
 
 print(concat("a", "b"))
 print(request_summary("https://example.com", method="POST", timeout=5))
@@ -60,10 +52,8 @@ print(request_summary("https://example.com", method="POST", timeout=5))
 ## 带配置的三层结构
 
 ```python title="configured_decorator.py" showLineNumbers
-from functools import wraps
-
-
 def log_with_options(**options):
+    # 外层收配置，中层收函数，内层在每次调用时执行
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -72,11 +62,9 @@ def log_with_options(**options):
         return wrapper
     return decorator
 
-
 @log_with_options(label="任务")
 def run_task() -> str:
     return "执行成功"
-
 
 print(run_task())
 ```

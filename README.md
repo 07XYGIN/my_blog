@@ -27,6 +27,26 @@ Gin 的个人技术博客。文章内容来自 `docs/` 目录下的 MDX 文件�
 pnpm install
 pnpm dev
 ```
+## 更新简历
+
+“关于”页的“职业履历”入口指向 `/about/resume`，正文维护在 `content/resume.md`。页面与 PDF 共用这份 Markdown 和 `src/app/about/resume/resume.css`。
+
+修改简历后，重新生成并一同提交 `public/resume/qiao-yushuai.pdf`，下载按钮直接提供该 PDF，兼容静态部署：
+
+```bash
+pnpm exec playwright install chromium
+pnpm resume:pdf
+```
+
+也可以使用本机已安装的 Edge（PowerShell）：
+
+```powershell
+$env:RESUME_BROWSER_CHANNEL = "msedge"
+pnpm resume:pdf
+```
+
+导出无需启动开发服务器。中文排版依赖运行环境中的中文字体，例如 Microsoft YaHei 或 Noto Sans CJK SC。
+
 ## 添加文章
 
 在 `docs/` 或任意子目录中新建 `.mdx` 文件，并填写 frontmatter：
@@ -66,16 +86,11 @@ description: '登录成功后生成 access token 的基础写法。'
 language: 'python'
 tags: 'FastAPI,JWT,Auth'
 date: '2026-08-11'
-originTitle: 'Python 学习与速查索引'
-originHref: '/blog/python-review#常用模块'
+originTitle: 'FastAPI：异步数据库与 JWT 登录'
+originHref: '/blog/fastapi'
 ---
 
 ```python title="jwt.py" showLineNumbers
-import os
-from datetime import datetime, timedelta, timezone
-
-import jwt
-
 def create_access_token(data: dict):
     payload = data.copy()
     payload["exp"] = datetime.now(timezone.utc) + timedelta(minutes=30)

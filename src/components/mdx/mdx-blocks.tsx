@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { FileTree } from "@/components/mdx/file-tree";
 import { MermaidDiagram } from "@/components/mdx/mermaid-diagram";
 import { CodeFigure } from "@/components/code-block";
+import { CodeTab, CodeTabs } from "@/components/mdx/code-tabs";
 import { uniqueHeadingId } from "@/lib/mdx-content";
 
 type CalloutKind = "note" | "tip" | "warning" | "danger" | "interview";
@@ -43,6 +44,8 @@ export function getMdxComponents(headingCounts: Map<string, number>) {
     TabsContent,
     MermaidDiagram,
     FileTree,
+    CodeTabs,
+    CodeTab,
     Steps,
     Step,
     Details,

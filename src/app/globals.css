@@ -571,6 +571,19 @@ button { font: inherit; }
   height: auto;
   white-space: normal;
 }
+.prose-content .mdx-code-tabs [data-slot="tabs-list"] {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+.prose-content .mdx-code-tabs [data-slot="tabs-trigger"] {
+  white-space: nowrap;
+}
+.prose-content .mdx-code-tabs [data-slot="tabs-content"] {
+  min-width: 0;
+}
+.prose-content .mdx-code-tabs [data-slot="tabs-content"] > .code-frame {
+  margin-block: 16px 24px;
+}
 
 .prose-content .code-frame pre {
   margin: 0;

@@ -129,6 +129,7 @@ def create_access_token(data: dict):
 | `TabsList` | 标签按钮组 |
 | `TabsTrigger` | 根据 `value` 切换对应内容 |
 | `TabsContent` | 显示匹配 `value` 的标签页内容 |
+| `CodeTabs`、`CodeTab` | 按语言条目自动生成标签，保留代码块的复制、全屏和高亮 |
 | `MermaidDiagram` | 渲染 Mermaid 源码，提供缩放、平移和复位 |
 | `FileTree` | 将路径数组显示为文件目录树 |
 | `Steps`、`Step` | 步骤列表容器与带标题的单个步骤 |
@@ -207,6 +208,12 @@ const next = count + 1
   <TabsContent value="vue">Vue 示例内容</TabsContent>
 </Tabs>
 ```
+
+### 多语言代码组
+
+使用 `<CodeTabs defaultValue="java">` 包裹多个 `<CodeTab value="java" label="Java">`。每个 `CodeTab` 内直接写普通代码围栏，语言、文件名与行号仍由围栏声明，无需在 MDX 中导入组件。
+
+至少提供两个条目，`value` 必须唯一；省略 `defaultValue` 时显示首项。完整的三语言用法见 [多语言代码组说明](mdx-code-tabs-research.md)。
 
 ### 文件树
 

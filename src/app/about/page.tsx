@@ -79,25 +79,9 @@ export default async function AboutPage() {
           ))}
         </div>
       </section>
-      <section className="about-section">
-        <div>
-          <p className="section-kicker">Writing</p>
-          <h2>把过程留下来</h2>
-        </div>
-        <div className="about-writing">
-          <p>
-            这里收录了 {posts.length} 篇技术笔记和 {projects.length}{" "}
-            个项目。笔记围绕具体问题展开，项目记录实现过程中的选择、问题和收获。
-          </p>
-          <Link className="text-link focus-ring" href="/blog">
-            阅读笔记
-            <ArrowRight size={16} />
-          </Link>
-        </div>
-      </section>
       <section className="about-projects">
         <div className="section-heading">
-          <h2>精选项目</h2>
+
           <Link className="text-link focus-ring" href="/projects">
             全部项目
             <ArrowRight size={15} />

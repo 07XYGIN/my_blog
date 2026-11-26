@@ -1,0 +1,319 @@
+---
+title: '向量与向量数据库'
+description: '使用pgvector搭建向量数据库'
+category: 'Agent'
+tags: 'LLM,Memory,Vector'
+date: '2026-11-26'
+readTime: '18 分钟'
+author: 'Gin'
+IS_SHOW: TRUE
+---
+
+## 基础
+向量 是由浮点数构成的数组
+
+~~~py
+embe = [0.12, -0.53, 0.88, ...]
+~~~
+
+原始数据转化成向量的过程
+~~~mermaid
+flowchart LR
+  RAW[原始数据<br/>文本/图片/音频] --> PRE[预处理<br/>文本分词/图片缩放]
+  PRE --> MODEL[Embedding 模型<br/>神经网络前向计算]
+  MODEL --> VEC[输出向量<br/>float 数组]
+~~~
+
+## 将文本向量化
+
+在ollama中引入`paraphrase-multilingual`
+~~~bash
+ollama pull paraphrase-multilingual
+~~~
+
+~~~py
+import requests
+import numpy as np
+
+def embed(texts):
+    resp = requests.post(
+        "http://localhost:11434/api/embed",
+        json={"model": "paraphrase-multilingual", "input": texts},
+    )
+    resp.raise_for_status()
+    return np.array(resp.json()["embeddings"]) # 使用np.array将python list 转化成 矩阵
+
+def cosine(a, b):
+    """
+    计算两个向量间的余弦相似度
+    
+    结果在 -1 到 1 之间，越接近 1 表示方向越一致，也就是语义越相近
+
+    np.dot(a,b):点积
+    np.linalg.norm(a) 向量的模
+    """
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)) # 对应公式 (a·b) / (|a|×|b|) = cos(θ)
+
+sentences = [
+    "我喜欢吃苹果",
+    "I like eating apples",
+    "苹果发布了新款手机",
+    "今天天气很好",
+]
+
+vecs = embed(sentences)
+print("向量形状:", vecs.shape)   # 看看维度是多少
+print("第一句前8个数:", vecs[0][:8])
+
+# 拿第一句和其余每句比相似度
+for i in range(1, len(sentences)):
+    print(f"{sentences[0]}  vs  {sentences[i]}  ->  {cosine(vecs[0], vecs[i]):.3f}")
+    """
+    我喜欢吃苹果  vs  I like eating apples  ->  0.989
+    我喜欢吃苹果  vs  苹果发布了新款手机  ->  0.264
+    我喜欢吃苹果  vs  今天天气很好  ->  0.330
+    """
+~~~
+
+## 向量相似度
+
+向量化之后，"两段文本像不像"就变成了"两个向量近不近"。常用的度量有三种：
+
+| 度量 | 衡量什么 | 数值含义 |
+| --- | --- | --- |
+| 余弦相似度 | 方向夹角 | -1 到 1，越大越相似 |
+| 欧氏距离 | 空间中两点的直线距离 | 越小越相似 |
+| 点积 | 方向一致程度 × 长度 | 越大越相似 |
+
+**余弦只看方向，欧氏距离还看长度。** 例如 `[1, 1]` 和 `[10, 10]`，余弦相似度为 1，欧氏距离却约为 12.7。
+
+文本向量的语义信息主要在方向上，长度通常不携带含义，所以文本检索一般选余弦。而且大多数 Embedding 模型输出的向量已经做过 L2 归一化（长度为 1），此时有：
+
+~~~text
+欧氏距离² = 2 − 2 × 余弦相似度
+点积 = 余弦相似度
+~~~
+
+三种度量排出来的结果顺序完全一致，选哪个都行。**具体用哪种，以模型文档为准**，训练时用什么度量，检索时就用什么。
+
+另外，上面的运行结果有两点值得注意：
+
+- 无关句子的相似度并不是 0，而是 0.2 到 0.4，文本向量几乎不会出现明显的负数。所以**绝对值意义不大，看相对排名才有意义**。
+- 向量捕捉的是"在聊什么"，对肯定或否定不敏感，"我喜欢吃苹果"和"我讨厌吃苹果"的相似度往往很高。
+
+## 为什么需要向量数据库
+
+上面的代码把一句话和其余句子逐个比较，几句话没有问题。但换成真实的知识库，就会遇到几个问题。
+
+**1. 暴力比较的代价随数据量线性增长**
+
+每次查询都要和库里每一条向量算一遍，复杂度是 O(N × 维度)。以 768 维为例，每条向量约 3KB，一百万条就是约 3GB 数据、近 8 亿次乘加运算。用 numpy 做矩阵运算还能勉强应付，但数据到千万、亿级，或者并发查询一多，延迟和内存都会撑不住。
+
+**2. 近似最近邻索引（ANN）**
+
+向量数据库的核心思路是：**不要求结果百分百精确，换取数量级的速度提升。** 常见的索引有两类：
+
+- **HNSW**：构建多层的"小世界"图，查询时从上层稀疏图快速逼近目标，再到下层精细搜索。查询快、召回率高，代价是占内存、建索引慢。
+- **IVFFlat**：先用聚类把向量划分成若干个桶，查询时只搜索离查询向量最近的几个桶。建索引快、省内存，召回率略低。
+
+**3. 数据库本来就该做的事**
+
+只有检索能力是不够的，实际业务里还需要：
+
+- **持久化**：向量不能只存在内存里，重启就丢。
+- **增删改**：知识库内容会更新，对应的向量也要跟着变。
+- **联合过滤**：比如"只在用户 A 的文档里找最相似的 5 条"，需要把向量检索和普通字段条件结合起来。
+
+~~~mermaid
+flowchart LR
+  Q[用户问题] --> E[Embedding 模型]
+  E --> QV[查询向量]
+  QV --> DB[(向量数据库<br/>ANN 索引)]
+  DB --> TOP[Top-K 最相近的内容]
+~~~
+
+## 为什么选 pgvector
+
+专门的向量数据库（Milvus、Qdrant、Chroma 等）有很多，pgvector 的特点是它**不是新的数据库，而是 PostgreSQL 的一个扩展**：
+
+- 向量和业务数据放在同一个库里，一条 SQL 就能同时做向量检索和条件过滤。
+- 不用额外维护一套新的服务，对已有 PostgreSQL 的项目接入成本最低。
+- 支持 HNSW 和 IVFFlat 两种索引，数据量在百万级以内，性能完全够用。
+
+数据量到了上亿、对延迟要求极高时，再考虑专用的向量数据库也不迟。    
+
+
+## 使用 pgvector 存储和检索向量
+
+### 准备环境
+
+pgvector 是 PostgreSQL 的扩展，服务器上要先安装它。用 Docker 最省事，官方镜像已经内置：
+
+~~~bash
+docker run -d --name pgvector -p 5432:5432 -e POSTGRES_PASSWORD=你的密码 pgvector/pgvector:pg17
+~~~
+
+然后安装 Python 依赖：
+
+~~~bash
+pip install "psycopg[binary]" pgvector requests numpy
+~~~
+
+### 建表
+
+~~~sql
+-- 每个数据库只需执行一次，启用向量类型和运算符
+create extension if not exists vector;
+
+create table vector_learn (
+    id        bigserial primary key, -- 主键
+    content   text not null,         -- 原始文本
+    embedding vector(768)            -- 768 维向量
+);
+
+comment on table vector_learn is '学习如何使用向量数据库';
+~~~
+
+**`vector(768)` 的维度必须和模型输出一致**。`paraphrase-multilingual` 输出 768 维，换成 `bge-m3` 就要改成 1024，旧表里的数据也要全部重新向量化。
+
+### 写入向量
+
+~~~py
+import requests
+import numpy as np
+import psycopg
+from pgvector.psycopg import register_vector
+
+# 注意最后是数据库名，不是 schema 名
+CONN_STR = "postgresql://postgres:密码@localhost:5432/aura"
+
+
+def embed(text):
+    """输入一句话，返回一维向量（768 个浮点数）"""
+    resp = requests.post(
+        "http://localhost:11434/api/embed",
+        json={"model": "paraphrase-multilingual", "input": text},
+    )
+    resp.raise_for_status()
+    # 接口返回的是二维结构，传单句时取 [0] 得到一维向量
+    return np.array(resp.json()["embeddings"][0])
+
+
+sentences = [
+    "我喜欢吃苹果",
+    "I like eating apples",
+    "苹果发布了新款手机",
+    "今天天气很好",
+]
+
+
+def insert():
+    with psycopg.connect(CONN_STR) as conn:
+        register_vector(conn)  # 让 psycopg 认识 numpy 数组和 vector 类型
+        with conn.cursor() as cur:
+            for msg in sentences:
+                cur.execute(
+                    "INSERT INTO vector_learn (content, embedding) VALUES (%s, %s)",
+                    (msg, embed(msg)),
+                )
+        conn.commit()
+
+
+insert()
+~~~
+
+`register_vector` 是关键一步，少了它，psycopg 不知道怎么把 numpy 数组转成数据库的 vector 类型，会报错。
+
+### 查询最相近的内容
+
+~~~py
+def search(query, k=3):
+    qvec = embed(query)
+    with psycopg.connect(CONN_STR) as conn:
+        register_vector(conn)
+        with conn.cursor() as cur:
+            # SQL 里有两个 %s，所以参数元组传两次
+            cur.execute(
+                """
+                select id, content, embedding <=> %s as cos_distance
+                from vector_learn
+                order by embedding <=> %s
+                limit %s
+                """,
+                (qvec, qvec, k),
+            )
+            return cur.fetchall()
+
+
+for row in search("我喜欢吃苹果"):
+    print(row)
+~~~
+
+运行结果：
+
+~~~text
+(5, '我喜欢吃苹果', 0.0)
+(6, 'I like eating apples', 0.010516021749623627)
+(8, '今天天气很好', 0.6696400453460364)
+~~~
+
+几点说明：
+
+- 查询句本身就在库里，所以第一条距离是 0。换成库里没有的句子，比如"我喜欢香蕉"，更能看出检索效果。
+- 第 4 名"苹果发布了新款手机"被 `limit 3` 截掉了。
+- 距离和前面 numpy 算出的相似度完全对得上：`1 - 0.6696 = 0.330`。
+- 必须用 `%s` 占位符传参数，不能在 SQL 字符串里直接写 Python 变量名，也不要用 f-string 拼接，否则既查不出东西，还有 SQL 注入风险。
+
+### pgvector 的运算符
+
+pgvector 提供了四个距离运算符：
+
+| 运算符 | 含义 | 返回值 | 对应索引操作符类 |
+| --- | --- | --- | --- |
+| `<->` | 欧氏距离（L2） | 越小越相似 | `vector_l2_ops` |
+| `<=>` | 余弦距离 | 越小越相似 | `vector_cosine_ops` |
+| `<#>` | 负内积 | 越小越相似 | `vector_ip_ops` |
+| `<+>` | 曼哈顿距离（L1） | 越小越相似 | `vector_l1_ops` |
+
+它们的返回值都是"越小越相似"，所以统一写 `order by 向量 <运算符> 查询向量 limit k`，不需要区分升序降序。用一个简单的例子对比，`[1,2,3]` 和 `[4,5,6]`：
+
+~~~sql
+select '[1,2,3]'::vector <-> '[4,5,6]'::vector;  -- 5.196，欧氏距离 √27
+select '[1,2,3]'::vector <=> '[4,5,6]'::vector;  -- 0.0254，余弦距离 = 1 - 0.9746
+select '[1,2,3]'::vector <#> '[4,5,6]'::vector;  -- -32，内积 32 取负
+select '[1,2,3]'::vector <+> '[4,5,6]'::vector;  -- 9，|3|+|3|+|3|
+~~~
+
+**`<=>` 返回的是距离，不是相似度。** 取值范围 0 到 2，0 表示方向完全一致，1 表示互不相关，2 表示方向相反。要还原成相似度，用 `1 - 距离`：
+
+~~~sql
+select content, 1 - (embedding <=> %s) as similarity
+from vector_learn
+order by embedding <=> %s
+limit 3;
+~~~
+
+**`<#>` 返回的是内积的相反数。** 内积本来是越大越相似，但 PostgreSQL 的索引只支持升序扫描，所以 pgvector 把它取负，让它也服从"越小越近"。想要真正的内积，乘回 -1 即可：`(embedding <#> %s) * -1`。
+
+怎么选，前面"向量相似度"一章已经讲过，这里归纳一下：
+
+- 文本检索首选 **`<=>`**，是最通用的选择。
+- 如果向量已经 L2 归一化，`<->`、`<=>`、`<#>` 的排序结果一致。可以用 `select vector_norm(embedding) from vector_learn limit 3;` 检查，结果接近 1 就说明已经归一化。
+- 归一化的向量用 `<#>` 最快，因为省去了除以长度的计算。
+- 最终以模型文档为准，训练用什么度量，检索就用什么。
+
+
+### 小结
+
+到这里，整条链路已经跑通：
+
+~~~mermaid
+flowchart LR
+  T[文本] --> E[Ollama<br/>Embedding 模型]
+  E --> V[768 维向量]
+  V --> DB[(pgvector<br/>vector_learn)]
+  Q[查询文本] --> E2[Embedding 模型]
+  E2 --> QV[查询向量]
+  QV -->|<=> 余弦距离| DB
+  DB --> R[最相近的 Top-K 文本]
+~~~

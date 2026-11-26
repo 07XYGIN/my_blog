@@ -6,7 +6,7 @@ import type { Project, ProjectStatus } from "@/lib/projects";
 
 const statusLabels: Record<ProjectStatus, string> = {
   ACTIVE: "进行中",
-  SHIPPED: "已交付",
+  SHIPPED: "完成",
   ARCHIVED: "已归档",
 };
 
